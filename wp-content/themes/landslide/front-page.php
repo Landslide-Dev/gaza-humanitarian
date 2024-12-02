@@ -33,9 +33,9 @@
             <div class="item">
                 <a href="#what-we-do">What We Do</a>
             </div>
-            <div class="item">
-                <a href="#our-team">Our Team</a>
-            </div>
+            <!-- <div class="item"> -->
+                <!-- <a href="#our-team">Our Team</a> -->
+            <!-- </div> -->
         </nav>
     </section>
 
