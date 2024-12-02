@@ -53,6 +53,7 @@ $(function() {
         $('.header').toggleClass('active');
         $('.big-nav').toggleClass('active');
 
+
         // wait 300ms then add show to each item
         if ($(this).hasClass('active')) {
             setTimeout(function() {
@@ -60,6 +61,8 @@ $(function() {
             }, 50);
         } else {
             $('.big-nav .item').removeClass('show');
+
+            
         }
 
     });
