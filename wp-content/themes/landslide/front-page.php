@@ -12,7 +12,7 @@
                 <a href="#about-ghf">About GHF</a>
                 <a href="#why-it-matters">Why it Matters</a>
                 <a href="#what-we-do">What We Do</a>
-                <a href="#our-team">Our Team</a>
+                <!-- <a href="#our-team">Our Team</a> -->
             </nav>
             <button class="toggle-nav">
                 <svg class="open-me" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="#000000" viewBox="0 0 256 256"><path d="M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM40,76H216a12,12,0,0,0,0-24H40a12,12,0,0,0,0,24ZM216,180H40a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Z"></path></svg>
@@ -133,7 +133,7 @@
                 <a href="#about-ghf">About GHF</a>
                 <a href="#why-it-matters">Why it Matters</a>
                 <a href="#what-we-do">What We Do</a>
-                <a href="#our-team">Our Team</a>
+                <!-- <a href="#our-team">Our Team</a> -->
             </nav>
             <nav class="disclaimer">
                 <a href="#">Contact Us</a>
