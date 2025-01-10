@@ -124,6 +124,9 @@ class Notifications extends Mailer {
 	 */
 	public function init( $template = '' ) {
 
+		// Add hooks.
+		$this->hooks();
+
 		// Assign the current template.
 		$this->current_template = Helpers::get_current_template_name( $template );
 
@@ -141,6 +144,16 @@ class Notifications extends Mailer {
 
 		// Plain text and other html templates will use the current class.
 		return $this;
+	}
+
+	/**
+	 * Add hooks.
+	 *
+	 * @since 1.9.0
+	 */
+	private function hooks() {
+
+		add_filter( 'wpforms_smart_tags_formatted_field_value', [ $this, 'get_multi_field_formatted_value' ], 10, 4 );
 	}
 
 	/**
@@ -242,7 +255,7 @@ class Notifications extends Mailer {
 			'wpforms_tasks_entry_emails_trigger_send_same_process',
 			false,
 			$this->fields,
-			! empty( wpforms()->get( 'entry' ) ) ? wpforms()->get( 'entry' )->get( $this->entry_id ) : [],
+			! empty( wpforms()->obj( 'entry' ) ) ? wpforms()->obj( 'entry' )->get( $this->entry_id ) : [],
 			$this->form_data,
 			$this->entry_id,
 			'entry'
@@ -451,6 +464,19 @@ class Notifications extends Mailer {
 		$message = '';
 
 		foreach ( $this->form_data['fields'] as $field ) {
+			/**
+			 * Filter whether to ignore the field in the email.
+			 *
+			 * @since 1.9.0
+			 *
+			 * @param bool  $ignore    Whether to ignore the field in the email.
+			 * @param array $field     Field data.
+			 * @param array $form_data Form data.
+			 */
+			if ( apply_filters( 'wpforms_emails_notifications_field_ignored', false, $field, $this->form_data ) ) {
+				continue;
+			}
+
 			$field_message = $this->get_field_plain( $field, $show_empty_fields );
 
 			/**
@@ -594,6 +620,19 @@ class Notifications extends Mailer {
 		$this->form_data = apply_filters( 'wpforms_emails_notifications_form_data', $this->form_data, $this->fields );
 
 		foreach ( $this->form_data['fields'] as $field ) {
+			/**
+			 * Filter whether to ignore the field in the email.
+			 *
+			 * @since 1.9.0
+			 *
+			 * @param bool  $ignore    Whether to ignore the field in the email.
+			 * @param array $field     Field data.
+			 * @param array $form_data Form data.
+			 */
+			if ( apply_filters( 'wpforms_emails_notifications_field_ignored', false, $field, $this->form_data ) ) {
+				continue;
+			}
+
 			$field_message = $this->get_field_html( $field, $show_empty_fields, $other_fields );
 
 			/**
@@ -635,7 +674,15 @@ class Notifications extends Mailer {
 		// Check if the field is empty in $this->fields.
 		if ( empty( $this->fields[ $field_id ] ) ) {
 			// Check if the field type is in $other_fields, otherwise skip.
-			if ( empty( $other_fields ) || ! in_array( $field_type, $other_fields, true ) ) {
+			// Skip if the field is conditionally hidden.
+			if (
+				empty( $other_fields ) ||
+				! in_array( $field_type, $other_fields, true ) ||
+				(
+					wpforms()->is_pro() &&
+					wpforms_conditional_logic_fields()->field_is_hidden( $this->form_data, $field_id )
+				)
+			) {
 				return '';
 			}
 
@@ -660,8 +707,26 @@ class Notifications extends Mailer {
 			$field_name = $this->get_default_field_name( $field_id );
 		}
 
+		/**
+		 * Filter the field name before it is added to the email message.
+		 *
+		 * @since 1.9.1
+		 *
+		 * @param string $field_name Field name.
+		 * @param array  $field      Field data.
+		 * @param array  $form_data  Form data.
+		 * @param string $context    Context of the field name.
+		 */
+		$field_name = (string) apply_filters( // phpcs:ignore WPForms.PHP.ValidateHooks.InvalidHookName
+			'wpforms_html_field_name',
+			$field_name,
+			$this->fields[ $field_id ] ?? $field,
+			$this->form_data,
+			'email-html'
+		);
+
 		/** This filter is documented in src/SmartTags/SmartTag/FieldHtmlId.php.*/
-		$field_val = apply_filters( // phpcs:ignore WPForms.PHP.ValidateHooks.InvalidHookName
+		$field_val = (string) apply_filters( // phpcs:ignore WPForms.PHP.ValidateHooks.InvalidHookName
 			'wpforms_html_field_value',
 			$field_val,
 			$this->fields[ $field_id ] ?? $field,
@@ -669,10 +734,7 @@ class Notifications extends Mailer {
 			'email-html'
 		);
 
-		// If it's not and RTE field - replace new lines with <br/> tags.
-		if ( $field_type !== 'richtext' ) {
-			$field_val = str_replace( [ "\r\n", "\r", "\n" ], '<br/>', $field_val );
-		}
+		$field_val = str_replace( [ "\r\n", "\r", "\n" ], '<br/>', $field_val );
 
 		// Replace the payment total value if an order summary is enabled.
 		// Ideally, it could be done through the `wpforms_html_field_value` filter,
@@ -753,23 +815,13 @@ class Notifications extends Mailer {
 				break;
 
 			case 'html':
-				// Skip if the field is conditionally hidden.
-				if ( $this->is_field_conditionally_hidden( $field['id'] ) ) {
-					break;
-				}
-
 				$field_name = ! empty( $field['name'] ) ? $field['name'] : esc_html__( 'HTML / Code Block', 'wpforms-lite' );
 				$field_val  = $field['code'];
 				break;
 
 			case 'content':
-				// Skip if the field is conditionally hidden.
-				if ( $this->is_field_conditionally_hidden( $field['id'] ) ) {
-					break;
-				}
-
 				$field_name = esc_html__( 'Content', 'wpforms-lite' );
-				$field_val  = $field['content'];
+				$field_val  = wpforms_esc_richtext_field( $field['content'] );
 				break;
 
 			default:
@@ -779,20 +831,6 @@ class Notifications extends Mailer {
 		}
 
 		return [ $field_name, $field_val ];
-	}
-
-	/**
-	 * Checks if conditional_logic is enabled and a field is conditionally hidden in the form.
-	 *
-	 * @since 1.8.5
-	 *
-	 * @param int $field_id The ID of the field to check.
-	 *
-	 * @return bool
-	 */
-	private function is_field_conditionally_hidden( $field_id ) {
-
-		return ! empty( $this->form_data['fields'][ $field_id ]['conditionals'] ) && ! wpforms_conditional_logic_fields()->field_is_visible( $this->form_data, $field_id );
 	}
 
 	/**
@@ -1105,5 +1143,37 @@ class Notifications extends Mailer {
 		}
 
 		return isset( $templates[ $template ] ) ? $templates[ $template ] : $templates;
+	}
+
+	/**
+	 * Get multiple field formatted value.
+	 *
+	 * @since 1.9.0
+	 *
+	 * @param string $value     Field value.
+	 * @param int    $field_id  Field ID.
+	 * @param array  $fields    List of fields.
+	 * @param string $field_key Field key to get value from.
+	 *
+	 * @return string
+	 *
+	 * @noinspection PhpUnusedParameterInspection
+	 */
+	public function get_multi_field_formatted_value( string $value, int $field_id, array $fields, string $field_key ): string {
+
+		$field_type = $fields[ $field_id ]['type'] ?? '';
+
+		// Leave early if the field type is not a multi-field.
+		if ( ! in_array( $field_type, wpforms_get_multi_fields(), true ) ) {
+			return $value;
+		}
+
+		// Leave early if the template is set to plain text.
+		if ( Helpers::is_plain_text_template( $this->current_template ) ) {
+			// Replace <br/> tags with line breaks.
+			return str_replace( '<br/>', "\r\n", $value );
+		}
+
+		return str_replace( [ "\r\n", "\r", "\n" ], '<br/>', $value );
 	}
 }

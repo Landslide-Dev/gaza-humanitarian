@@ -62,14 +62,14 @@ class WPForms_Field_CreditCard extends WPForms_Field {
 
 		if (
 			wpforms_has_field_type( 'credit-card', $forms, true ) ||
-			wpforms()->get( 'frontend' )->assets_global()
+			wpforms()->obj( 'frontend' )->assets_global()
 		) {
 			wp_enqueue_script(
 				'wpforms-payment',
 				WPFORMS_PLUGIN_URL . 'assets/pro/lib/jquery.payment.min.js',
 				[ 'jquery' ],
 				WPFORMS_VERSION,
-				true
+				$this->load_script_in_footer()
 			);
 		}
 	}
@@ -89,6 +89,11 @@ class WPForms_Field_CreditCard extends WPForms_Field {
 
 		// Remove primary for expanded formats since we have first, middle, last.
 		unset( $properties['inputs']['primary'] );
+
+		// Remove reference to an input element to prevent duplication.
+		if ( empty( $field['sublabel_hide'] ) ) {
+			unset( $properties['label']['attr']['for'] );
+		}
 
 		$form_id  = absint( $form_data['id'] );
 		$field_id = absint( $field['id'] );
@@ -616,7 +621,7 @@ class WPForms_Field_CreditCard extends WPForms_Field {
 		$name = ! empty( $form_data['fields'][ $field_id ]['label'] ) ? $form_data['fields'][ $field_id ]['label'] : '';
 
 		// Set final field details.
-		wpforms()->get( 'process' )->fields[ $field_id ] = [
+		wpforms()->obj( 'process' )->fields[ $field_id ] = [
 			'name'  => sanitize_text_field( $name ),
 			'value' => '',
 			'id'    => absint( $field_id ),

@@ -62,17 +62,18 @@ class Frontend {
 
 		if (
 			wpforms_has_field_type( $this->field::TYPE, $forms, true ) === true ||
-			wpforms()->get( 'frontend' )->assets_global()
+			wpforms()->obj( 'frontend' )->assets_global()
 		) {
 
-			$min = wpforms_get_min_suffix();
+			$min       = wpforms_get_min_suffix();
+			$in_footer = ! wpforms_is_frontend_js_header_force_load();
 
 			wp_enqueue_script(
 				'wpforms-captcha',
 				WPFORMS_PLUGIN_URL . "assets/pro/js/frontend/fields/custom-captcha{$min}.js",
 				[ 'jquery', 'wpforms' ],
 				WPFORMS_VERSION,
-				true
+				$in_footer
 			);
 
 			$strings = [

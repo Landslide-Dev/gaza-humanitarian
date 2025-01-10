@@ -68,7 +68,7 @@ class Helpers {
 	 *
 	 * @return array
 	 */
-	private static function get_repeater_all_field_ids( array $repeater_field ): array {
+	public static function get_repeater_all_field_ids( array $repeater_field ): array {
 
 		return array_merge( ...wp_list_pluck( $repeater_field['columns'] ?? [], 'fields' ) );
 	}
@@ -331,5 +331,25 @@ class Helpers {
 				'field'        => $field,
 			];
 		}
+	}
+
+	/**
+	 * Determine if the block has only empty fields.
+	 *
+	 * @since 1.9.1
+	 *
+	 * @param array $block Block settings.
+	 *
+	 * @return bool
+	 */
+	public static function is_empty_block( array $block ): bool {
+
+		foreach ( $block as $rows ) {
+			if ( ! LayoutHelpers::is_layout_empty( [ 'columns' => $rows ] ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

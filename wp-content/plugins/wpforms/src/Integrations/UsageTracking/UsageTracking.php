@@ -3,11 +3,12 @@
 namespace WPForms\Integrations\UsageTracking;
 
 use WPForms\Admin\Builder\Templates;
+use WPForms\Integrations\AI\Helpers as AIHelpers;
 use WPForms\Integrations\IntegrationInterface;
 use WPForms\Integrations\LiteConnect\Integration;
 
 /**
- * Usage Tracker functionality to understand what's going on on client's sites.
+ * Usage Tracker functionality to understand what's going on client's sites.
  *
  * @since 1.6.1
  */
@@ -63,7 +64,7 @@ class UsageTracking implements IntegrationInterface {
 	 *
 	 * @since 1.6.1
 	 */
-	public function load() {
+	public function load() { // phpcs:ignore WPForms.PHP.HooksMethod.InvalidPlaceForAddingHooks
 
 		add_filter( 'wpforms_settings_defaults', [ $this, 'settings_misc_option' ], 4 );
 
@@ -182,6 +183,7 @@ class UsageTracking implements IntegrationInterface {
 			'wpforms_forms_total'            => $forms_total,
 			'wpforms_form_fields_count'      => $form_fields_count,
 			'wpforms_form_templates_total'   => $form_templates_total,
+			'wpforms_form_antispam_stat'     => $this->get_form_antispam_stat( $forms ),
 			'wpforms_challenge_stats'        => get_option( 'wpforms_challenge', [] ),
 			'wpforms_lite_installed_date'    => $this->get_installed( $activated_dates, 'lite' ),
 			'wpforms_pro_installed_date'     => $this->get_installed( $activated_dates, 'pro' ),
@@ -189,11 +191,18 @@ class UsageTracking implements IntegrationInterface {
 			'wpforms_settings'               => $this->get_settings(),
 			'wpforms_integration_active'     => $this->get_forms_integrations( $forms ),
 			'wpforms_payments_active'        => $this->get_payments_active( $forms ),
+			'wpforms_product_quantities'     => [
+				'payment-single' => $this->count_fields_with_setting( $forms, 'payment-single', 'enable_quantity' ),
+				'payment-select' => $this->count_fields_with_setting( $forms, 'payment-select', 'enable_quantity' ),
+			],
+			'wpforms_order_summaries'        => $this->count_fields_with_setting( $forms, 'payment-total', 'summary' ),
 			'wpforms_multiple_confirmations' => count( $this->get_forms_with_multiple_confirmations( $forms ) ),
 			'wpforms_multiple_notifications' => count( $this->get_forms_with_multiple_notifications( $forms ) ),
 			'wpforms_ajax_form_submissions'  => count( $this->get_ajax_form_submissions( $forms ) ),
-			'wpforms_notification_count'     => wpforms()->get( 'notifications' )->get_count(),
+			'wpforms_notification_count'     => wpforms()->obj( 'notifications' )->get_count(),
 			'wpforms_stats'                  => $this->get_additional_stats(),
+			'wpforms_ai'                     => AIHelpers::is_used(),
+			'wpforms_ai_killswitch'          => AIHelpers::is_disabled(),
 		];
 
 		if ( ! empty( $first_form_date ) ) {
@@ -299,6 +308,9 @@ class UsageTracking implements IntegrationInterface {
 					'hcaptcha-site-key',
 					'hcaptcha-secret-key',
 					'hcaptcha-fail-msg',
+					'turnstile-site-key',
+					'turnstile-secret-key',
+					'turnstile-fail-msg',
 					'pdf-ninja-api_key',
 				]
 			)
@@ -395,11 +407,19 @@ class UsageTracking implements IntegrationInterface {
 		$integrations = array_map(
 			static function ( $form ) {
 
-				if ( ! empty( $form->post_content['providers'] ) ) {
-					return array_keys( $form->post_content['providers'] );
+				if ( empty( $form->post_content['providers'] ) ) {
+					return false;
 				}
 
-				return false;
+				$active_integrations = [];
+
+				foreach ( $form->post_content['providers'] as $provider_slug => $connections ) {
+					if ( ! empty( $connections ) ) {
+						$active_integrations[] = $provider_slug;
+					}
+				}
+
+				return $active_integrations;
 			},
 			$forms
 		);
@@ -538,19 +558,7 @@ class UsageTracking implements IntegrationInterface {
 	private function get_entries_total( string $period = 'all' ): int {
 
 		if ( ! wpforms()->is_pro() ) {
-			if ( $period === '7days' || $period === '30days' ) {
-				return 0;
-			}
-
-			global $wpdb;
-
-			$count = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching
-				"SELECT SUM(meta_value)
-				FROM $wpdb->postmeta
-				WHERE meta_key = 'wpforms_entries_count';"
-			);
-
-			return (int) $count;
+			return $this->get_entries_total_lite( $period );
 		}
 
 		$args = [];
@@ -582,9 +590,37 @@ class UsageTracking implements IntegrationInterface {
 				break;
 		}
 
-		$entry_obj = wpforms()->get( 'entry' );
+		$entry_obj = wpforms()->obj( 'entry' );
 
 		return $entry_obj ? $entry_obj->get_entries( $args, true ) : 0;
+	}
+
+	/**
+	 * Total number of entries in Lite.
+	 *
+	 * @since 1.9.0
+	 *
+	 * @param string $period Which period should be counted? Possible values: 7days, 30days.
+	 *                       Everything else will mean "all" entries.
+	 *
+	 * @return int
+	 */
+	private function get_entries_total_lite( string $period = 'all' ): int {
+
+		if ( $period === '7days' || $period === '30days' ) {
+			return 0;
+		}
+
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$count = $wpdb->get_var(
+			"SELECT SUM(meta_value)
+				FROM $wpdb->postmeta
+				WHERE meta_key = 'wpforms_entries_count';"
+		);
+
+		return (int) $count;
 	}
 
 	/**
@@ -604,7 +640,7 @@ class UsageTracking implements IntegrationInterface {
 		}
 
 		$fields = array_map(
-			static function( $form ) {
+			static function ( $form ) {
 
 				return $form->post_content['fields'] ?? [];
 			},
@@ -671,7 +707,7 @@ class UsageTracking implements IntegrationInterface {
 	 */
 	private function get_all_forms( $post_type = 'wpforms' ): array {
 
-		$forms = wpforms()->get( 'form' )->get( '', [ 'post_type' => $post_type ] );
+		$forms = wpforms()->obj( 'form' )->get( '', [ 'post_type' => $post_type ] );
 
 		if ( ! is_array( $forms ) ) {
 			return [];
@@ -703,7 +739,7 @@ class UsageTracking implements IntegrationInterface {
 		foreach ( $templates as $user_templates ) {
 			foreach ( $user_templates as $template => $v ) {
 				$name              = 'fav_templates_' . str_replace( '-', '_', $template );
-				$settings[ $name ] = empty( $settings[ $name ] ) ? 1 : ++ $settings[ $name ];
+				$settings[ $name ] = empty( $settings[ $name ] ) ? 1 : ++$settings[ $name ];
 			}
 		}
 
@@ -817,5 +853,99 @@ class UsageTracking implements IntegrationInterface {
 		}
 
 		return $stats;
+	}
+
+	/**
+	 * Retrieves form anti-spam settings statistic.
+	 *
+	 * @since 1.9.0
+	 *
+	 * @param array $forms List of forms and their settings.
+	 *
+	 * @return array
+	 */
+	private function get_form_antispam_stat( array $forms ): array { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.MaxExceeded
+
+		$stat = [
+			'antispam'           => 0,
+			'antispam_v3'        => 0,
+			'akismet'            => 0,
+			'store_spam_entries' => 0,
+			'time_limit'         => 0,
+			'country_filter'     => 0,
+			'keyword_filter'     => 0,
+			'captcha'            => 0,
+		];
+
+		foreach ( $forms as $form ) {
+			$settings = $form->post_content['settings'] ?? [];
+
+			// Skip forms with disabled anti-spam settings.
+			if ( empty( $settings['antispam'] ) && empty( $settings['antispam_v3'] ) ) {
+				continue;
+			}
+
+			// Increment the counters for each form with enabled anti-spam settings.
+			$stat['antispam']    += ! empty( $settings['antispam'] ) ? 1 : 0; // Classic anti-spam enabled.
+			$stat['antispam_v3'] += ! empty( $settings['antispam_v3'] ) ? 1 : 0; // Modern anti-spam enabled.
+
+			$anti_spam = $settings['anti_spam'] ?? [];
+
+			// Increment the counter for each enabled anti-spam feature.
+			$stat['akismet']            += ! empty( $anti_spam['akismet'] ) ? 1 : 0;
+			$stat['store_spam_entries'] += ! empty( $settings['store_spam_entries'] ) ? 1 : 0;
+			$stat['time_limit']         += ! empty( $anti_spam['time_limit']['enable'] ) ? 1 : 0;
+			$stat['country_filter']     += ! empty( $anti_spam['country_filter']['enable'] ) ? 1 : 0;
+			$stat['keyword_filter']     += ! empty( $anti_spam['keyword_filter']['enable'] ) ? 1 : 0;
+			$stat['captcha']            += ! empty( $settings['recaptcha'] ) ? 1 : 0;
+		}
+
+		// Count the list of keywords for the keyword filter.
+		$keyword_filter   = wpforms()->obj( 'antispam_keyword_filter' );
+		$keywords         = method_exists( $keyword_filter, 'get_keywords' ) ? $keyword_filter->get_keywords() : [];
+		$stat['keywords'] = count( $keywords );
+
+		return $stat;
+	}
+
+	/**
+	 * Count how many field have a specific setting enabled.
+	 *
+	 * @since 1.9.0.3
+	 *
+	 * @param array  $forms         Published forms.
+	 * @param string $field_type    Field type.
+	 * @param string $field_setting Field setting.
+	 *
+	 * @return int
+	 */
+	private function count_fields_with_setting( array $forms, string $field_type, string $field_setting ): int { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.TooHigh
+
+		$counter = 0;
+
+		// Bail early, in case there are no forms.
+		if ( empty( $forms ) ) {
+			return $counter;
+		}
+
+		// Go through all forms.
+		foreach ( $forms as $form ) {
+
+			$fields = $form->post_content['fields'] ?? [];
+
+			if ( empty( $fields ) ) {
+				continue;
+			}
+
+			// Go through all fields on the form.
+			foreach ( $fields as $field ) {
+
+				if ( ! empty( $field['type'] ) && $field['type'] === $field_type && ! empty( $field[ $field_setting ] ) ) {
+					++$counter;
+				}
+			}
+		}
+
+		return $counter;
 	}
 }

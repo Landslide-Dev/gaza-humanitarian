@@ -103,7 +103,7 @@ class Frontend {
 	public function init() {
 
 		$this->forms   = [];
-		$this->amp_obj = wpforms()->get( 'amp' );
+		$this->amp_obj = wpforms()->obj( 'amp' );
 
 		$this->init_render_engine( wpforms_get_render_engine() );
 		$this->hooks();
@@ -149,7 +149,7 @@ class Frontend {
 	public function init_render_engine( $engine ) {
 
 		$this->render_engine = $engine;
-		$this->render_obj    = wpforms()->get( "frontend_{$this->render_engine}" );
+		$this->render_obj    = wpforms()->obj( "frontend_{$this->render_engine}" );
 
 		$this->render_obj->hooks();
 	}
@@ -229,7 +229,7 @@ class Frontend {
 		$form_data    = (array) apply_filters( 'wpforms_frontend_form_data', $form_data );
 		$form_id      = absint( $form->ID );
 		$this->action = esc_url_raw( remove_query_arg( 'wpforms' ) );
-		$errors       = empty( wpforms()->get( 'process' )->errors[ $form_id ] ) ? [] : wpforms()->get( 'process' )->errors[ $form_id ];
+		$errors       = empty( wpforms()->obj( 'process' )->errors[ $form_id ] ) ? [] : wpforms()->obj( 'process' )->errors[ $form_id ];
 		$title        = filter_var( $title, FILTER_VALIDATE_BOOLEAN );
 		$description  = filter_var( $description, FILTER_VALIDATE_BOOLEAN );
 
@@ -358,7 +358,7 @@ class Frontend {
 		}
 
 		// Grab the form data, if not found, then we bail.
-		$form = wpforms()->get( 'form' )->get( (int) $id );
+		$form = wpforms()->obj( 'form' )->get( (int) $id );
 
 		if ( empty( $form ) ) {
 			return null;
@@ -424,7 +424,7 @@ class Frontend {
 		 */
 		do_action( 'wpforms_frontend_output_before', $form_data, $form );
 
-		if ( $this->output_success( $form, $form_data ) ) {
+		if ( $this->output_success( $form ) ) {
 			return true;
 		}
 
@@ -482,23 +482,28 @@ class Frontend {
 	 *
 	 * @since 1.8.1
 	 *
-	 * @param WP_Post $form      Form.
-	 * @param array   $form_data Form data.
+	 * @param WP_Post $form Form.
 	 *
 	 * @return bool
 	 */
-	private function output_success( $form, $form_data ): bool {
+	private function output_success( $form ): bool {
 
 		$form_id = absint( $form->ID );
-		$process = wpforms()->get( 'process' );
-		$errors  = empty( $process->errors[ $form_id ] ) ? [] : $process->errors[ $form_id ];
+		$process = wpforms()->obj( 'process' );
+
+		if ( ! $process ) {
+			return false;
+		}
+
+		$form_data = $process->form_data;
+		$errors    = empty( $process->errors[ $form_id ] ) ? [] : $process->errors[ $form_id ];
 
 		// Check for return hash.
 		if (
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			! empty( $_GET['wpforms_return'] ) &&
 			$process->valid_hash &&
-			(int) $process->form_data['id'] === $form_id
+			(int) $form_data['id'] === $form_id
 		) {
 			$this->form_container_open( $form_data, $form );
 
@@ -511,7 +516,7 @@ class Frontend {
 			 * @param array $fields    Form fields.
 			 * @param int   $entry_id  Form ID.
 			 */
-			do_action( 'wpforms_frontend_output_success', $process->form_data, $process->fields, $process->entry_id );
+			do_action( 'wpforms_frontend_output_success', $form_data, $process->fields, $process->entry_id );
 
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing
 			wpforms_debug_data( $_POST );
@@ -530,19 +535,13 @@ class Frontend {
 			(int) $_POST['wpforms']['id'] === $form_id
 			// phpcs:enable WordPress.Security.NonceVerification.Missing
 		) {
-			$is_ajax = wp_doing_ajax();
-
 			// There is no need for a container wrapper when a form is submitted through AJAX.
-			if ( ! $is_ajax ) {
-				$this->form_container_open( $form_data, $form );
-			}
+			$this->form_container_open( $form_data, $form );
 
 			/** This action is documented in the same method, several lines above. */
-			do_action( 'wpforms_frontend_output_success', $form_data, false, false );
+			do_action( 'wpforms_frontend_output_success', $form_data, $process->fields, $process->entry_id );
 
-			if ( ! $is_ajax ) {
-				$this->form_container_close( $form_data, $form );
-			}
+			$this->form_container_close( $form_data, $form );
 
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing
 			wpforms_debug_data( $_POST );
@@ -571,7 +570,7 @@ class Frontend {
 
 		list( $fields, $entry_id ) = $this->prepare_confirmation_args( $fields, $entry_id );
 
-		$process              = wpforms()->get( 'process' );
+		$process              = wpforms()->obj( 'process' );
 		$confirmation         = $process->get_current_confirmation();
 		$confirmation_message = $process->get_confirmation_message( $form_data, $fields, $entry_id );
 
@@ -879,7 +878,7 @@ class Frontend {
 		}
 
 		// Check if there are errors.
-		if ( ! empty( wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ] ) ) {
+		if ( ! empty( wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ] ) ) {
 			$attributes['input_class'][] = 'wpforms-error';
 		}
 
@@ -1034,7 +1033,7 @@ class Frontend {
 		$field      = $this->filter_field( $field, $form_data, $attributes );
 		$form_id    = absint( $form_data['id'] );
 		$field_id   = wpforms_validate_field_id( $field['id'] );
-		$error      = ! empty( wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ] ) ? wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ] : '';
+		$error      = ! empty( wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ] ) ? wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ] : '';
 
 		return [ $field, $attributes, $error ];
 	}
@@ -1496,15 +1495,21 @@ class Frontend {
 	}
 
 	/**
-	 * Load the necessary CSS for single pages/posts earlier if possible.
+	 * Load the necessary assets for single pages/posts earlier if possible.
 	 *
 	 * If we are viewing a singular page, then we can check the content early
 	 * to see if the shortcode was used. If not, we fall back and load the assets
 	 * later on during the page (widgets, archives, etc.).
 	 *
 	 * @since 1.0.0
+	 * @since 1.9.0 Added load JS assets.
 	 */
 	public function assets_header() {
+
+		// Force loading JS assets in the header.
+		if ( ! $this->load_script_in_footer() ) {
+			$this->assets_js();
+		}
 
 		/**
 		 * Allow loading assets in header on various pages.
@@ -1524,9 +1529,9 @@ class Frontend {
 		 *
 		 * @param bool $force_load Force loading assets in header, default `false`.
 		 */
-		$force_load = (bool) apply_filters( 'wpforms_frontend_assets_header_force_load', false );
+		$force_load_css = (bool) apply_filters( 'wpforms_frontend_assets_header_force_load', false );
 
-		if ( $force_load ) {
+		if ( $force_load_css ) {
 			$this->assets_css();
 
 			return;
@@ -1599,15 +1604,16 @@ class Frontend {
 		 */
 		do_action( 'wpforms_frontend_js', $this->forms );
 
-		$min = wpforms_get_min_suffix();
+		$min       = wpforms_get_min_suffix();
+		$in_footer = $this->load_script_in_footer();
 
 		// Load jQuery validation library - https://jqueryvalidation.org/.
 		wp_enqueue_script(
 			'wpforms-validation',
 			WPFORMS_PLUGIN_URL . 'assets/lib/jquery.validate.min.js',
 			[ 'jquery' ],
-			'1.20.0',
-			true
+			'1.21.0',
+			$in_footer
 		);
 
 		// Load jQuery input mask library - https://github.com/RobinHerbots/jquery.inputmask.
@@ -1620,8 +1626,8 @@ class Frontend {
 				'wpforms-maskedinput',
 				WPFORMS_PLUGIN_URL . 'assets/lib/jquery.inputmask.min.js',
 				[ 'jquery' ],
-				'5.0.7-beta.29',
-				true
+				'5.0.9',
+				$in_footer
 			);
 		}
 
@@ -1635,7 +1641,7 @@ class Frontend {
 				WPFORMS_PLUGIN_URL . 'assets/lib/mailcheck.min.js',
 				false,
 				'1.1.2',
-				true
+				$in_footer
 			);
 
 			wp_enqueue_script(
@@ -1643,7 +1649,7 @@ class Frontend {
 				WPFORMS_PLUGIN_URL . 'assets/lib/punycode.min.js',
 				[],
 				'1.0.0',
-				true
+				$in_footer
 			);
 		}
 
@@ -1652,7 +1658,7 @@ class Frontend {
 			WPFORMS_PLUGIN_URL . "assets/js/share/utils{$min}.js",
 			[ 'jquery' ],
 			WPFORMS_VERSION,
-			true
+			$in_footer
 		);
 
 		// Load base JS.
@@ -1661,7 +1667,7 @@ class Frontend {
 			WPFORMS_PLUGIN_URL . "assets/js/frontend/wpforms{$min}.js",
 			[ 'jquery' ],
 			WPFORMS_VERSION,
-			true
+			$in_footer
 		);
 
 		// Load JS additions needed in the Modern Markup mode.
@@ -1671,7 +1677,7 @@ class Frontend {
 				WPFORMS_PLUGIN_URL . "assets/js/frontend/wpforms-modern{$min}.js",
 				[ 'wpforms' ],
 				WPFORMS_VERSION,
-				true
+				$in_footer
 			);
 		}
 	}
@@ -1741,6 +1747,7 @@ class Frontend {
 
 		$form_data = (array) $form_data;
 		$min       = wpforms_get_min_suffix();
+		$in_footer = $this->load_script_in_footer();
 
 		// Base CSS only.
 		if ( (int) wpforms_setting( 'disable-css', '1' ) === 1 ) {
@@ -1759,7 +1766,7 @@ class Frontend {
 				WPFORMS_PLUGIN_URL . "assets/js/frontend/wpforms-confirmation{$min}.js",
 				[ 'jquery' ],
 				WPFORMS_VERSION,
-				true
+				$in_footer
 			);
 		}
 
@@ -1846,6 +1853,20 @@ class Frontend {
 			'val_inputmask_incomplete'   => wpforms_setting( 'validation-inputmask-incomplete', esc_html__( 'Please fill out the field in required format.', 'wpforms-lite' ) ),
 			'uuid_cookie'                => false,
 			'locale'                     => wpforms_get_language_code(),
+
+			/**
+			 * Filters the user's country code.
+			 *
+			 * Leave empty for most cases, it will be auto-detected.
+			 * If set it will make country recognition in wpforms.js frontend skipped.
+			 * Allows to test Phone Smart field with different countries.
+			 *
+			 * @since 1.9.0
+			 *
+			 * @param string|false $country Country code.
+			 */
+			'country'                    => apply_filters( 'wpforms_frontend_get_user_country_code', false ),
+			'country_list_label'         => esc_html__( 'Country list', 'wpforms-lite' ),
 			'wpforms_plugin_url'         => WPFORMS_PLUGIN_URL,
 			'gdpr'                       => wpforms_setting( 'gdpr' ),
 			'ajaxurl'                    => admin_url( 'admin-ajax.php' ),
@@ -1900,7 +1921,8 @@ class Frontend {
 				continue;
 			}
 
-			$strings[ $key ] = html_entity_decode( (string) $value, ENT_QUOTES, 'UTF-8' );
+			$strings[ $key ] = esc_html( html_entity_decode( (string) $value, ENT_QUOTES, 'UTF-8' ) );
+
 		}
 
 		return $strings;
@@ -1949,7 +1971,7 @@ class Frontend {
 			return $strings;
 		}
 
-		$css_vars_obj = wpforms()->get( 'css_vars' );
+		$css_vars_obj = wpforms()->obj( 'css_vars' );
 
 		if ( empty( $css_vars_obj ) ) {
 			return $strings;
@@ -2219,5 +2241,17 @@ class Frontend {
 		 * @param array $form_data Form data.
 		 */
 		do_action( 'wpforms_display_field_after', $field, $form_data ); // phpcs:ignore WPForms.PHP.ValidateHooks.InvalidHookName
+	}
+
+	/**
+	 * Whether to print the script in the footer.
+	 *
+	 * @since 1.9.0
+	 *
+	 * @return bool
+	 */
+	protected function load_script_in_footer(): bool {
+
+		return ! wpforms_is_frontend_js_header_force_load();
 	}
 }

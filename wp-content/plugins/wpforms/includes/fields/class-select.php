@@ -16,7 +16,7 @@ class WPForms_Field_Select extends WPForms_Field {
 	 *
 	 * @since 1.6.3
 	 */
-	const CHOICES_VERSION = '9.0.1';
+	const CHOICES_VERSION = '10.2.0';
 
 	/**
 	 * Classic (old) style.
@@ -198,6 +198,16 @@ class WPForms_Field_Select extends WPForms_Field {
 
 		// Choices.
 		$this->field_option( 'choices', $field );
+
+		// AI Feature.
+		$this->field_option(
+			'ai_modal_button',
+			$field,
+			[
+				'value' => esc_html__( 'Generate Choices', 'wpforms-lite' ),
+				'type'  => 'choices',
+			]
+		);
 
 		// Description.
 		$this->field_option( 'description', $field );
@@ -612,7 +622,7 @@ class WPForms_Field_Select extends WPForms_Field {
 		}
 
 		// Push field details to be saved.
-		wpforms()->get( 'process' )->fields[ $field_id ] = $data;
+		wpforms()->obj( 'process' )->fields[ $field_id ] = $data;
 	}
 
 	/**
@@ -634,7 +644,7 @@ class WPForms_Field_Select extends WPForms_Field {
 			}
 		}
 
-		if ( $has_modern_select || wpforms()->get( 'frontend' )->assets_global() ) {
+		if ( $has_modern_select || wpforms()->obj( 'frontend' )->assets_global() ) {
 			$min = wpforms_get_min_suffix();
 
 			wp_enqueue_style(
@@ -665,7 +675,7 @@ class WPForms_Field_Select extends WPForms_Field {
 			}
 		}
 
-		if ( $has_modern_select || wpforms()->get( 'frontend' )->assets_global() ) {
+		if ( $has_modern_select || wpforms()->obj( 'frontend' )->assets_global() ) {
 			$this->enqueue_choicesjs_once( $forms );
 		}
 	}

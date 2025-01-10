@@ -128,7 +128,7 @@ abstract class SmartTag {
 			return '';
 		}
 
-		$entry = wpforms()->get( 'entry' );
+		$entry = wpforms()->obj( 'entry' );
 
 		if ( empty( $entry ) ) {
 			return '';
@@ -212,7 +212,7 @@ abstract class SmartTag {
 			return '';
 		}
 
-		$entry_meta = wpforms()->get( 'entry_meta' );
+		$entry_meta = wpforms()->obj( 'entry_meta' );
 
 		if ( empty( $entry_meta ) ) {
 			return '';
@@ -243,6 +243,20 @@ abstract class SmartTag {
 	protected function get_formatted_field_value( int $field_id, array $fields, string $field_key ) {
 
 		$value = $fields[ $field_id ][ $field_key ] ?? '';
+
+		/**
+		 * Allow modifying the formatted field value.
+		 *
+		 * @since 1.9.0
+		 *
+		 * @param string $value     Field value.
+		 * @param int    $field_id  Field ID.
+		 * @param array  $fields    List of fields.
+		 * @param string $field_key Field key to get value from.
+		 *
+		 * @return string
+		 */
+		$value = (string) apply_filters( 'wpforms_smart_tags_formatted_field_value', $value, $field_id, $fields, $field_key ); //phpcs:ignore WPForms.PHP.ValidateHooks.InvalidHookName
 
 		if ( ! wpforms_is_repeated_field( $field_id, $fields ) ) {
 			return $value;

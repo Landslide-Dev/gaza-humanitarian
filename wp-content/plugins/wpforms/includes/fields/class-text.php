@@ -178,6 +178,14 @@ class WPForms_Field_Text extends WPForms_Field {
 			$properties['inputs']['primary']['data']['inputmask-alias']       = 'datetime';
 			$properties['inputs']['primary']['data']['inputmask-inputformat'] = $mask;
 
+			/**
+			 * Some datetime formats include letters, so we need to switch inputmode to text.
+			 * For instance:
+			 * – tt is am/pm
+			 * – TT is AM/PM
+			 */
+			$properties['inputs']['primary']['data']['inputmask-inputmode'] = preg_match( '/[tT]/', $mask ) ? 'text' : 'numeric';
+
 			return $properties;
 		}
 
@@ -477,7 +485,7 @@ class WPForms_Field_Text extends WPForms_Field {
 				WPFORMS_PLUGIN_URL . "assets/js/frontend/fields/text-limit.es5{$min}.js",
 				[],
 				WPFORMS_VERSION,
-				true
+				$this->load_script_in_footer()
 			);
 		}
 	}
@@ -499,7 +507,7 @@ class WPForms_Field_Text extends WPForms_Field {
 		// Sanitize.
 		$value = sanitize_text_field( $field_submit );
 
-		wpforms()->get( 'process' )->fields[ $field_id ] = [
+		wpforms()->obj( 'process' )->fields[ $field_id ] = [
 			'name'  => $name,
 			'value' => $value,
 			'id'    => wpforms_validate_field_id( $field_id ),
@@ -532,14 +540,14 @@ class WPForms_Field_Text extends WPForms_Field {
 		if ( 'characters' === $mode ) {
 			if ( mb_strlen( str_replace( "\r\n", "\n", $value ) ) > $limit ) {
 				/* translators: %s - limit characters number. */
-				wpforms()->get( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d character.', 'Text can\'t exceed %d characters.', $limit, 'wpforms-lite' ), $limit );
+				wpforms()->obj( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d character.', 'Text can\'t exceed %d characters.', $limit, 'wpforms-lite' ), $limit );
 
 				return;
 			}
 		} else {
 			if ( wpforms_count_words( $value ) > $limit ) {
 				/* translators: %s - limit words number. */
-				wpforms()->get( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d word.', 'Text can\'t exceed %d words.', $limit, 'wpforms-lite' ), $limit );
+				wpforms()->obj( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d word.', 'Text can\'t exceed %d words.', $limit, 'wpforms-lite' ), $limit );
 
 				return;
 			}

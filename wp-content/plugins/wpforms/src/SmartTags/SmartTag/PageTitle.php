@@ -34,11 +34,6 @@ class PageTitle extends SmartTag {
 		}
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
-		/*
-		 * In most cases `wp_title()` returns the value we're going to use, except:
-		 * - on static front page (we can use page title as a fallback),
-		 * - on standard front page with the latest post (we can use the site name as a fallback).
-		 */
 		if ( is_front_page() ) {
 			return wp_kses_post( is_page() ? get_the_title( get_the_ID() ) : get_bloginfo( 'name' ) );
 		}
@@ -65,7 +60,11 @@ class PageTitle extends SmartTag {
 			$wp_filter['wp_title']->callbacks = [];
 		}
 
-		// Get the raw value.
+		/*
+		 * In most cases `wp_title()` returns the value we're going to use, except:
+		 * - on static front page (we can use page title as a fallback),
+		 * - on standard front page with the latest post (we can use the site name as a fallback).
+		 */
 		$title = trim( wp_title( '', false ) );
 
 		// Run through the default transformations WordPress does on this hook.

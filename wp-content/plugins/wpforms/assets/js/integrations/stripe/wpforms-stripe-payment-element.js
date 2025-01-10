@@ -71,7 +71,6 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 			);
 
 			$( document ).on( 'wpformsReady', function() {
-				app.initializeFormsDefaultObject();
 
 				$( '.wpforms-stripe form' )
 					.each( app.setupStripeForm )
@@ -90,24 +89,37 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 		 * Initialize forms default object.
 		 *
 		 * @since 1.8.2
+		 * @deprecated 1.8.9
 		 */
 		initializeFormsDefaultObject() {
-			$( '.wpforms-stripe form' ).each( function() {
-				const formId = $( this ).data( 'formid' );
+			// eslint-disable-next-line no-console
+			console.warn( 'WARNING! Function "WPFormsStripePaymentElement.initializeFormsDefaultObject()" has been deprecated, please use the "WPFormsStripePaymentElement.initializeFormDefaultObject( formId )" function instead!' );
 
-				app.forms[ formId ] = {
-					elements : null,
-					paymentElement: null,
-					elementsModified: false,
-					linkElement: null,
-					linkEmail: '',
-					linkDestroyed: false,
-					paymentType: '',
-					lockedPageToSwitch: 0,
-					paymentMethodId: '',
-					total: '',
-				};
+			$( '.wpforms-stripe form' ).each( function() {
+				app.initializeFormDefaultObject( $( this ).data( 'formid' ) );
 			} );
+		},
+
+		/**
+		 * Initialize form default object.
+		 *
+		 * @since 1.8.9
+		 *
+		 * @param {string} formId Form ID.
+		 */
+		initializeFormDefaultObject( formId ) {
+			app.forms[ formId ] = {
+				elements: null,
+				paymentElement: null,
+				elementsModified: false,
+				linkElement: null,
+				linkEmail: '',
+				linkDestroyed: false,
+				paymentType: '',
+				lockedPageToSwitch: 0,
+				paymentMethodId: '',
+				total: '',
+			};
 		},
 
 		/**
@@ -117,7 +129,16 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 		 */
 		setupStripeForm() {
 			const $form = $( this ),
-				$stripeDiv = $form.find( '.wpforms-field-stripe-credit-card' );
+				formId = $form.data( 'formid' );
+
+			// Bail early if form was already setup.
+			if ( typeof app.forms[ formId ] !== 'undefined' ) {
+				return;
+			}
+
+			app.initializeFormDefaultObject( formId );
+
+			const $stripeDiv = $form.find( '.wpforms-field-stripe-credit-card' );
 
 			if ( ! $stripeDiv.find( '.wpforms-field-row' ).length ) {
 				return;
@@ -222,7 +243,7 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 			const formId = $form.data( 'formid' );
 
 			if ( $.isEmptyObject( app.forms ) ) {
-				app.initializeFormsDefaultObject();
+				app.initializeFormDefaultObject( formId );
 			}
 
 			if ( app.forms[ formId ].paymentElement ) {
@@ -235,7 +256,7 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 					mode: 'payment',
 					// eslint-disable-next-line
 					// See min amount for different currencies https://stripe.com/docs/currencies#minimum-and-maximum-charge-amounts.
-					amount: 77777,
+					amount: 7777777,
 					loader: 'always',
 					locale: wpforms_stripe.data.element_locale,
 					appearance: app.getElementAppearanceOptions( $form ),
@@ -250,6 +271,8 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 
 			// Update styles in Modern Markup mode.
 			app.updatePaymentElementStylesModern( $form );
+
+			WPFormsUtils.triggerEvent( $( document ), 'wpformsStripePaymentElementInitialized', [ $form, app.forms ] );
 		},
 
 		/**
@@ -334,6 +357,8 @@ var WPFormsStripePaymentElement = window.WPFormsStripePaymentElement || ( functi
 					borderRadius: inputStyle.borderRadius,
 					colorTextPlaceholder: inputStyle.colorTextPlaceholder,
 					colorIcon: inputStyle.colorText,
+					focusColor: inputStyle.focusColor,
+					borderColorWithOpacity: WPFormsUtils.cssColorsUtils.getColorWithOpacity( inputStyle.colorPrimary, '0.1' ),
 				},
 				rules: {
 					'.Input--invalid': {

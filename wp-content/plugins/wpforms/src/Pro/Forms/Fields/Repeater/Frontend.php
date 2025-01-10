@@ -62,6 +62,31 @@ class Frontend {
 	}
 
 	/**
+	 * Excluded from the Entry Preview display.
+	 *
+	 * @since 1.8.9
+	 * @deprecated 1.9.0
+	 *
+	 * @param bool  $exclude   Exclude the field.
+	 * @param array $field     Field data.
+	 * @param array $form_data Form data.
+	 *
+	 * @return bool
+	 * @noinspection PhpMissingParamTypeInspection
+	 * @noinspection PhpUnusedParameterInspection
+	 */
+	public function entry_preview_exclude_field( $exclude, $field, $form_data ): bool { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+
+		_deprecated_function( __METHOD__, '1.9.0 of the WPForms plugin' );
+
+		if ( $field['type'] === $this->field_obj->type ) {
+			return true;
+		}
+
+		return (bool) $exclude;
+	}
+
+	/**
 	 * Frontend CSS enqueues.
 	 *
 	 * @since 1.8.9
@@ -107,13 +132,15 @@ class Frontend {
 			return;
 		}
 
-		$min = wpforms_get_min_suffix();
+		$min       = wpforms_get_min_suffix();
+		$in_footer = ! wpforms_is_frontend_js_header_force_load();
 
 		wp_enqueue_script(
 			$this->field_obj->style_handle,
 			WPFORMS_PLUGIN_URL . "assets/pro/js/frontend/fields/repeater{$min}.js",
 			[ 'jquery' ],
-			WPFORMS_VERSION
+			WPFORMS_VERSION,
+			$in_footer
 		);
 	}
 
@@ -140,7 +167,7 @@ class Frontend {
 		 */
 		$this->populate_entry = apply_filters( 'wpforms_pro_forms_fields_repeater_frontend_clones_populate_entry', [], $form_data );
 
-		$process = wpforms()->get( 'repeater_process' );
+		$process = wpforms()->obj( 'repeater_process' );
 
 		if ( ! $process ) {
 			return $form_data;
@@ -273,7 +300,9 @@ class Frontend {
 		$clone_list = $this->get_clone_list_hidden_input( $field );
 
 		$template_html = sprintf(
-			'<script type="text/html" class="tmpl-wpforms-field-repeater-template">%1$s</script>',
+			'<script type="text/html" class="tmpl-wpforms-field-repeater-template-%1$d-%2$d">%3$s</script>',
+			$field['id'] ?? 0,
+			$this->field_obj->form_data['id'] ?? 0,
 			$clone_tpl // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		);
 
@@ -449,6 +478,10 @@ class Frontend {
 	private function get_blocks_title( array $field, $block_number ): string {
 
 		if ( ! empty( $field['label_hide'] ) ) {
+			return '';
+		}
+
+		if ( ! isset( $field['label'] ) || wpforms_is_empty_string( $field['label'] ) ) {
 			return '';
 		}
 

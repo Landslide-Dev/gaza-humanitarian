@@ -294,7 +294,13 @@ class WPForms_Field_Textarea extends WPForms_Field {
 		if ( count( $fields ) ) {
 			$min = wpforms_get_min_suffix();
 
-			wp_enqueue_script( 'wpforms-text-limit', WPFORMS_PLUGIN_URL . "assets/js/frontend/fields/text-limit.es5{$min}.js", [], WPFORMS_VERSION, true );
+			wp_enqueue_script(
+				'wpforms-text-limit',
+				WPFORMS_PLUGIN_URL . "assets/js/frontend/fields/text-limit.es5{$min}.js",
+				[],
+				WPFORMS_VERSION,
+				$this->load_script_in_footer()
+			);
 		}
 	}
 
@@ -319,7 +325,7 @@ class WPForms_Field_Textarea extends WPForms_Field {
 		// Sanitize but keep line breaks.
 		$value = wpforms_sanitize_textarea_field( $field_submit );
 
-		wpforms()->get( 'process' )->fields[ $field_id ] = [
+		wpforms()->obj( 'process' )->fields[ $field_id ] = [
 			'name'  => $name,
 			'value' => $value,
 			'id'    => wpforms_validate_field_id( $field_id ),
@@ -356,14 +362,14 @@ class WPForms_Field_Textarea extends WPForms_Field {
 		if ( 'characters' === $mode ) {
 			if ( mb_strlen( str_replace( "\r\n", "\n", $value ) ) > $limit ) {
 				/* translators: %s - limit characters number. */
-				wpforms()->get( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d character.', 'Text can\'t exceed %d characters.', $limit, 'wpforms-lite' ), $limit );
+				wpforms()->obj( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d character.', 'Text can\'t exceed %d characters.', $limit, 'wpforms-lite' ), $limit );
 
 				return;
 			}
 		} else {
 			if ( wpforms_count_words( $value ) > $limit ) {
 				/* translators: %s - limit words number. */
-				wpforms()->get( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d word.', 'Text can\'t exceed %d words.', $limit, 'wpforms-lite' ), $limit );
+				wpforms()->obj( 'process' )->errors[ $form_data['id'] ][ $field_id ] = sprintf( _n( 'Text can\'t exceed %d word.', 'Text can\'t exceed %d words.', $limit, 'wpforms-lite' ), $limit );
 
 				return;
 			}

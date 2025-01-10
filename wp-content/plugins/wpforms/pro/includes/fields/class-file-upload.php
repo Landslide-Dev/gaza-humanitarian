@@ -101,6 +101,8 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		$this->order = 100;
 		$this->group = 'fancy';
 
+		$this->remove_webfiles_from_denylist();
+
 		// Init our upload helper & add the actions.
 		$this->upload = new Upload();
 
@@ -161,6 +163,34 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	}
 
 	/**
+	 * Remove web files from denylist.
+	 *
+	 * @since 1.9.0
+	 */
+	private function remove_webfiles_from_denylist() {
+
+		if (
+			! function_exists( 'current_user_can' ) ||
+			/**
+			 * Filter to enable removing web files from denylist.
+			 *
+			 * @since 1.9.0
+			 *
+			 * @param bool $enabled Default value is false.
+			 *
+			 * @return bool
+			 */
+			! (bool) apply_filters( 'wpforms_field_file_upload_remove_webfiles_from_denylist_enabled', false )
+		) {
+			return;
+		}
+
+		if ( current_user_can( 'unfiltered_html' ) ) {
+			$this->denylist = array_diff( $this->denylist, [ 'htm', 'html', 'js' ] );
+		}
+	}
+
+	/**
 	 * Enqueue frontend field js.
 	 *
 	 * @since 1.5.6
@@ -181,7 +211,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 
 		if (
 			$is_file_modern_style ||
-			wpforms()->get( 'frontend' )->assets_global()
+			wpforms()->obj( 'frontend' )->assets_global()
 		) {
 
 			$min = wpforms_get_min_suffix();
@@ -191,7 +221,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 				WPFORMS_PLUGIN_URL . 'assets/pro/lib/dropzone.min.js',
 				[ 'jquery' ],
 				self::DROPZONE_VERSION,
-				true
+				$this->load_script_in_footer()
 			);
 
 			wp_enqueue_script(
@@ -199,7 +229,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 				WPFORMS_PLUGIN_URL . "assets/pro/js/frontend/fields/file-upload.es5{$min}.js",
 				[ 'wpforms', 'wp-util', self::HANDLE ],
 				WPFORMS_VERSION,
-				true
+				$this->load_script_in_footer()
 			);
 
 			wp_localize_script(
@@ -251,7 +281,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 
 		if (
 			$is_file_modern_style ||
-			wpforms()->get( 'frontend' )->assets_global()
+			wpforms()->obj( 'frontend' )->assets_global()
 		) {
 
 			$min = wpforms_get_min_suffix();
@@ -974,7 +1004,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	 *
 	 * @param string $deprecated_input_name Input name inside the form on front-end.
 	 */
-	protected function validate_classic( $deprecated_input_name ) {
+	protected function validate_classic( $deprecated_input_name ) { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.MaxExceeded
 
 		if ( ! isset( get_defined_vars()['deprecated_input_name'] ) ) {
 			_deprecated_argument( __METHOD__, '1.7.2 of the WPForms plugin', 'The `$input_name` argument was deprecated.' );
@@ -982,35 +1012,39 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 
 		$input_name = $this->get_input_name();
 
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
 		if ( empty( $_FILES[ $input_name ] ) ) {
 			return;
 		}
 
 		/*
-		 * If nothing is uploaded and it is not required, don't process.
+		 * If nothing is uploaded, and it is not required, don't process.
 		 */
-		if ( $_FILES[ $input_name ]['error'] === 4 && ! $this->is_required() ) {
+		$error = isset( $_FILES[ $input_name ]['error'] ) ? (int) $_FILES[ $input_name ]['error'] : 0;
+
+		if ( $error === 4 && ! $this->is_required() ) {
 			return;
 		}
 
 		/*
 		 * Basic file upload validation.
 		 */
-		$validated_basic = $this->validate_basic( (int) $_FILES[ $input_name ]['error'] );
+		$validated_basic = $this->validate_basic( $error );
+
 		if ( ! empty( $validated_basic ) ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_basic;
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_basic;
 
 			return;
 		}
 
 		/*
-		 * Validate if file is required and provided.
+		 * Validate if a file is required and provided.
 		 */
 		if (
-			( empty( $_FILES[ $input_name ]['tmp_name'] ) || 4 === $_FILES[ $input_name ]['error'] ) &&
+			( empty( $_FILES[ $input_name ]['tmp_name'] ) || $error === 4 ) &&
 			$this->is_required()
 		) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = wpforms_get_required_label();
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = wpforms_get_required_label();
 
 			return;
 		}
@@ -1022,7 +1056,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		$validated_size = $this->validate_size( [ $file_size ] );
 
 		if ( ! empty( $validated_size ) ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_size;
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_size;
 
 			return;
 		}
@@ -1030,12 +1064,14 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		/*
 		 * Validate file extension.
 		 */
-		$ext = strtolower( pathinfo( $_FILES[ $input_name ]['name'], PATHINFO_EXTENSION ) );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$name = $_FILES[ $input_name ]['name'] ?? '';
+		$ext  = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
 
 		$validated_ext = $this->validate_extension( $ext );
 
 		if ( ! empty( $validated_ext ) ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_ext;
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_ext;
 
 			return;
 		}
@@ -1046,13 +1082,12 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		 * doesn't allow, we won't allow it either. Users can use a plugin to
 		 * filter the allowed mime types in WordPress if this is an issue.
 		 */
-		$validated_filetype = $this->validate_wp_filetype_and_ext( $_FILES[ $input_name ]['tmp_name'], sanitize_file_name( wp_unslash( $_FILES[ $input_name ]['name'] ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		$validated_filetype = $this->validate_wp_filetype_and_ext( $_FILES[ $input_name ]['tmp_name'], sanitize_file_name( wp_unslash( $name ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
 		if ( ! empty( $validated_filetype ) ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_filetype;
-
-			return;
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $validated_filetype;
 		}
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 	}
 
 	/**
@@ -1072,7 +1107,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		$value = $this->sanitize_modern_files_input();
 
 		if ( empty( $value ) && $this->is_required() ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = wpforms_get_required_label();
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = wpforms_get_required_label();
 
 			return;
 		}
@@ -1146,7 +1181,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	private function validate_modern_files( $files ) {
 
 		if ( ! $this->has_missing_tmp_file( $files ) ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = $this->validate_basic( 7 );
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = esc_html__( 'File(s) not uploaded. Remove and re-attach file(s).', 'wpforms' );
 
 			return;
 		}
@@ -1154,7 +1189,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		$max_file_number = $this->get_max_file_number( $this->field_data );
 
 		if ( count( $files ) > $max_file_number ) {
-			wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = str_replace(
+			wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = str_replace(
 				'{fileLimit}',
 				$max_file_number,
 				wpforms_setting(
@@ -1181,7 +1216,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 				->value();
 
 			if ( ! empty( $errors ) ) {
-				wpforms()->get( 'process' )->errors[ $this->form_id ][ $this->field_id ] = implode( ' ', $errors );
+				wpforms()->obj( 'process' )->errors[ $this->form_id ][ $this->field_id ] = implode( ' ', $errors );
 
 				return;
 			}
@@ -1254,7 +1289,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 			: self::STYLE_CLASSIC;
 
 		if ( $style === self::STYLE_CLASSIC ) {
-			wpforms()->get( 'process' )->fields[ $field_id ] = [
+			wpforms()->obj( 'process' )->fields[ $field_id ] = [
 				'name'          => $field_label,
 				'value'         => '',
 				'file'          => '',
@@ -1267,7 +1302,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 			return;
 		}
 
-		wpforms()->get( 'process' )->fields[ $field_id ] = [
+		wpforms()->obj( 'process' )->fields[ $field_id ] = [
 			'name'      => $field_label,
 			'value'     => '',
 			'value_raw' => '',
@@ -1290,7 +1325,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	 */
 	public function upload_complete( $fields, $entry, $form_data ) {
 
-		if ( ! empty( wpforms()->get( 'process' )->errors[ $form_data['id'] ] ) ) {
+		if ( ! empty( wpforms()->obj( 'process' )->errors[ $form_data['id'] ] ) ) {
 			return $fields;
 		}
 
@@ -1306,7 +1341,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 			$this->field_data = ! empty( $this->form_data['fields'][ $field_id ] )
 				? $this->form_data['fields'][ $field_id ]
 				: [];
-			$is_visible       = ! isset( wpforms()->get( 'process' )->fields[ $field_id ]['visible'] ) || ! empty( wpforms()->get( 'process' )->fields[ $field_id ]['visible'] );
+			$is_visible       = ! isset( wpforms()->obj( 'process' )->fields[ $field_id ]['visible'] ) || ! empty( wpforms()->obj( 'process' )->fields[ $field_id ]['visible'] );
 
 			$fields[ $field_id ]['visible'] = $is_visible;
 
@@ -1453,28 +1488,28 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		foreach ( $form_data['conditional_fields'] as $key => $field_id ) {
 
 			// Check if the field exists.
-			if ( empty( wpforms()->get( 'process' )->fields[ $field_id ] ) ) {
+			if ( empty( wpforms()->obj( 'process' )->fields[ $field_id ] ) ) {
 				continue;
 			}
 
 			// Check if the 'type' exists.
-			if ( empty( wpforms()->get( 'process' )->fields[ $field_id ]['type'] ) ) {
+			if ( empty( wpforms()->obj( 'process' )->fields[ $field_id ]['type'] ) ) {
 				continue;
 			}
 
 			// We are only concerned with file upload fields.
-			if ( wpforms()->get( 'process' )->fields[ $field_id ]['type'] !== $this->type ) {
+			if ( wpforms()->obj( 'process' )->fields[ $field_id ]['type'] !== $this->type ) {
 				continue;
 			}
 
 			// If the upload field was no visible at submit then ignore it.
-			if ( empty( wpforms()->get( 'process' )->fields[ $field_id ]['visible'] ) ) {
+			if ( empty( wpforms()->obj( 'process' )->fields[ $field_id ]['visible'] ) ) {
 				continue;
 			}
 
 			// If there are errors pertaining to this form, its not going to
 			// process, so bail and avoid file upload.
-			if ( ! empty( wpforms()->get( 'process' )->errors[ $form_data['id'] ] ) ) {
+			if ( ! empty( wpforms()->obj( 'process' )->errors[ $form_data['id'] ] ) ) {
 				continue;
 			}
 
@@ -1541,7 +1576,8 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 			}
 
 			if ( ( time() - $modified ) >= $lifespan ) {
-				@unlink( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.unlink_unlink
+				@unlink( $file );
 			}
 		}
 	}
@@ -1588,11 +1624,12 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		}
 
 		// Make sure we have required values from $_FILES.
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
 		if ( empty( $_FILES['file']['name'] ) ) {
 			wp_send_json_error( $default_error, 403 );
 		}
 		if ( empty( $_FILES['file']['tmp_name'] ) ) {
-			wp_send_json_error( $default_error, 403 );
+			wp_send_json_error( esc_html__( 'File upload failed, please try again.', 'wpforms' ), 403 );
 		}
 
 		$error          = empty( $_FILES['file']['error'] ) ? 0 : (int) $_FILES['file']['error'];
@@ -1607,6 +1644,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 			->array_merge( (array) $this->validate_wp_filetype_and_ext( $path, $name ) )
 			->array_filter()
 			->value();
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		if ( count( $errors ) ) {
 			wp_send_json_error( implode( ',', $errors ), 400 );
@@ -1618,7 +1656,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		$tmp      = $this->move_file( $path, $tmp_path );
 
 		if ( ! $tmp ) {
-			wp_send_json_error( $default_error, 400 );
+			wp_send_json_error( esc_html__( 'File upload failed, please try again.', 'wpforms' ), 403 );
 		}
 
 		$this->clean_tmp_files();
@@ -1733,7 +1771,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		$tmp_path       = wp_normalize_path( $tmp_dir . '/' . $tmp_name );
 		$file_new       = pathinfo( $tmp_path, PATHINFO_FILENAME ) . '.' . pathinfo( $tmp_path, PATHINFO_EXTENSION );
 
-		if ( ! $handler->finalize( $tmp_path ) ) {
+		if ( ! $handler->finalize( $tmp_path, $file_name ) ) {
 			wp_send_json_error( $default_error, 403 );
 		}
 
@@ -1774,7 +1812,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$form_data = wpforms()->get( 'form' )->get( (int) $_POST['form_id'], [ 'content_only' => true ] );
+		$form_data = wpforms()->obj( 'form' )->get( (int) $_POST['form_id'], [ 'content_only' => true ] );
 
 		if ( empty( $form_data ) || ! is_array( $form_data ) ) {
 			return [];
@@ -1888,6 +1926,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	 */
 	protected function validate_size( $sizes = null ) {
 
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
 		if (
 			$sizes === null &&
 			! empty( $_FILES )
@@ -1898,6 +1937,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 				$sizes[] = $file['size'];
 			}
 		}
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		if ( ! is_array( $sizes ) ) {
 			return false;
@@ -2074,6 +2114,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 
 		$this->create_dir( dirname( $path_to ) );
 
+		// phpcs:ignore Generic.PHP.ForbiddenFunctions.Found
 		if ( false === move_uploaded_file( $path_from, $path_to ) ) {
 			wpforms_log(
 				'Upload Error, could not upload file',
@@ -2198,7 +2239,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 
 		if ( ! in_array( $file_data['ext'], $ext_types['image'], true ) ) {
 
-			$src = wp_mime_type_icon( wp_ext2type( $file_data['ext'] ) );
+			$src = wp_mime_type_icon( wp_ext2type( $file_data['ext'] ) ?? '' );
 		} elseif ( $file_data['attachment_id'] ) {
 
 			$image = wp_get_attachment_image_src( $file_data['attachment_id'], [ 16, 16 ], true );
@@ -2219,7 +2260,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	 */
 	private static function get_form_files_path( $form_id ) {
 
-		$form_data  = wpforms()->get( 'form' )->get( $form_id );
+		$form_data  = wpforms()->obj( 'form' )->get( $form_id );
 		$upload_dir = wpforms_upload_dir();
 
 		return trailingslashit( $upload_dir['path'] ) . ( new Upload() )->get_form_directory( $form_data->ID, $form_data->post_date );
@@ -2236,7 +2277,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	 */
 	private static function get_form_files_path_backward_fallback( $form_id ) {
 
-		$form_data  = wpforms()->get( 'form' )->get( $form_id );
+		$form_data  = wpforms()->obj( 'form' )->get( $form_id );
 		$upload_dir = wpforms_upload_dir();
 
 		return trailingslashit( $upload_dir['path'] ) . absint( $form_data->ID ) . '-' . md5( $form_data->post_date . $form_data->ID );
@@ -2256,7 +2297,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 	public static function delete_uploaded_files_from_entry( $entry_id, $delete_fields = [], $exclude_fields = [] ) {
 
 		$removed_files = [];
-		$entry         = wpforms()->get( 'entry' )->get( $entry_id );
+		$entry         = wpforms()->obj( 'entry' )->get( $entry_id );
 
 		if ( empty( $entry ) ) {
 			return $removed_files;
@@ -2353,6 +2394,7 @@ class WPForms_Field_File_Upload extends WPForms_Field {
 			return '';
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
 		unlink( $file );
 
 		return $file_data['file_user_name'];

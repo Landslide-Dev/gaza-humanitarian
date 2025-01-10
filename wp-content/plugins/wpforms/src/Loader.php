@@ -117,6 +117,11 @@ class Loader {
 			'name' => 'Forms\IconChoices',
 			'id'   => 'icon_choices',
 		];
+
+		$this->classes[] = [
+			'name' => 'Forms\AntiSpam',
+			'id'   => 'anti_spam',
+		];
 	}
 
 	/**
@@ -194,9 +199,6 @@ class Loader {
 			[
 				'name' => 'Admin\Notifications\Notifications',
 				'id'   => 'notifications',
-			],
-			[
-				'name' => 'Admin\Notifications\EventDriven',
 			],
 			[
 				'name' => 'Admin\Entries\Handler',
@@ -288,11 +290,8 @@ class Loader {
 				'hook' => 'admin_init',
 			],
 			[
-				'name' => 'Admin\Addons\Calculations',
-				'id'   => 'calculations',
-			],
-			[
 				'name' => 'Admin\PluginList',
+				'id'   => 'plugin_list',
 				'hook' => 'admin_init',
 			],
 			[
@@ -381,6 +380,11 @@ class Loader {
 
 		$this->classes[] = [
 			'name' => 'Forms\Fields\Layout\Process',
+			'hook' => 'init',
+		];
+
+		$this->classes[] = [
+			'name' => 'Forms\Fields\Layout\Notifications',
 			'hook' => 'init',
 		];
 
@@ -548,6 +552,9 @@ class Loader {
 			],
 			[
 				'name' => 'Admin\Builder\Ajax\PanelLoader',
+			],
+			[
+				'name' => 'Admin\Builder\Addons',
 			]
 		);
 	}
@@ -778,10 +785,12 @@ class Loader {
 			$this->classes,
 			[
 				'name' => 'AntiSpam\CountryFilter',
+				'id'   => 'antispam_country_filter',
 				'hook' => 'init',
 			],
 			[
 				'name' => 'AntiSpam\KeywordFilter',
+				'id'   => 'antispam_keyword_filter',
 				'hook' => 'init',
 			],
 			[

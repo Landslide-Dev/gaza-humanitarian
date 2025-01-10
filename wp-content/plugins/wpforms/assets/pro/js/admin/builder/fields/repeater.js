@@ -1,4 +1,4 @@
-/* global wpforms_builder, wpforms_addons */
+/* global wpforms_builder, wpforms_addons, wpf */
 
 /**
  * @param strings.calculation_notice_text
@@ -7,15 +7,13 @@
  * @param strings.cant_switch_to_rows_alert
  * @param strings.cl_notice_text
  * @param strings.cl_notice_text_grp
- * @param strings.cl_notice_tooltip
  * @param strings.move_to_rows_rejected_alert
  * @param strings.not_allowed
  * @param strings.not_allowed_alert_text
  * @param strings.not_allowed_fields
  * @param strings.rows_limit_max
- * @param strings.unique_notice_text
- * @param strings.unique_notice_text_grp
- * @param strings.unique_notice_tooltip
+ * @param wpforms_builder.repeater.fields_mapping.title
+ * @param wpforms_builder.repeater.fields_mapping.content
  * @param wpforms_builder.repeater.addons_requirements
  * @param wpforms_builder.repeater.wpforms_builder.repeater.addons_requirements_alert
  */
@@ -169,10 +167,127 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 				.on( 'wpformsFieldDuplicated', app.handleFieldDuplicated )
 				.on( 'wpformsBuilderReady', app.initFields )
 				.on( 'wpformsFieldOptionTabToggle', app.handleFieldOptionTabToggle )
-				.on( 'wpformsFieldMove', app.handleFieldMove );
+				.on( 'wpformsFieldMove', app.handleFieldMove )
+				.on( 'change', '.wpforms-field-option-layout .wpforms-field-option-row-conditional_logic input', app.handleUpdateFieldCLOption );
 
 			$( window )
 				.on( 'resize', _.debounce( app.handleWindowResize, 50 ) );
+		},
+
+		/**
+		 * Fields mapping notice.
+		 *
+		 * @since 1.9.1
+		 *
+		 * @param {string} fieldId Field ID.
+		 */
+		// eslint-disable-next-line max-lines-per-function
+		fieldsMappingNotice( fieldId ) {
+			/**
+			 * Check if the field is mapped to the select.
+			 *
+			 * @param {string} selectedFieldID Selected field ID.
+			 *
+			 * @return {boolean} True if the field is mapped.
+			 */
+			function isFieldMappedToSelect( selectedFieldID ) {
+				return parseInt( selectedFieldID, 10 ) === parseInt( fieldId, 10 );
+			}
+
+			/**
+			 * Get the section title.
+			 *
+			 * @param {Object} $select Field map select element.
+			 *
+			 * @return {string} Section title.
+			 */
+			function getSectionTitle( $select ) {
+				return $select.closest( '.wpforms-panel-content-section' ).find( '.wpforms-panel-content-section-title' )[ 0 ].firstChild.nodeValue.trim();
+			}
+
+			/**
+			 * Show the confirmation dialog.
+			 *
+			 * @param {string} sectionTitle Section title.
+			 * @param {Object} $field       Field element.
+			 */
+			function showConfirmationDialog( sectionTitle, $field ) {
+				el.$builder.on( 'wpformsBeforeFieldMapSelectUpdate', ( e ) => e.preventDefault() );
+
+				$.confirm( {
+					title: wpforms_builder.repeater.fields_mapping.title,
+					content: wpforms_builder.repeater.fields_mapping.content.replace( '%s', sectionTitle ),
+					icon: 'fa fa-exclamation-circle',
+					type: 'orange',
+					buttons: {
+						confirm: {
+							text: wpforms_builder.ok,
+							btnClass: 'btn-confirm',
+							keys: [ 'enter' ],
+							action: () => {
+								el.$builder.off( 'wpformsBeforeFieldMapSelectUpdate' );
+								const fields = wpf.getFields( false, true, false, false );
+
+								$( document ).trigger( 'wpformsFieldUpdate', [ fields ] );
+							},
+						},
+						cancel: {
+							text: wpforms_builder.cancel,
+							action: () => {
+								WPForms.Admin.Builder.DragFields.revertMoveFieldToColumn( $field );
+								WPForms.Admin.Builder.FieldLayout.removeFieldFromColumns( $field.data( 'field-id' ) );
+								app.initFields();
+							},
+						},
+					},
+				} );
+			}
+
+			/**
+			 * Check and handle the field mapping.
+			 *
+			 * @param {Object} $field Field element.
+			 */
+			function checkAndHandleFieldMapping( $field ) {
+				const data = {
+					sections: [],
+					$field: null,
+				};
+
+				// Check if the field is mapped to the select.
+				$( 'select[data-field-map-allowed], select.wpforms-builder-provider-connection-field-value' ).each( function() {
+					const $select = $( this );
+
+					if ( isFieldMappedToSelect( $select.val() ) ) {
+						data.sections.push( getSectionTitle( $select ) );
+						data.$field = $field;
+					}
+				} );
+
+				if ( data.$field ) {
+					const sectionTitle = [ ...new Set( data.sections ) ].join( ' ' + wpforms_builder.repeater.fields_mapping.and + ' ' );
+					showConfirmationDialog( sectionTitle, data.$field );
+				}
+			}
+
+			/**
+			 * Check if the field is inside the repeater and show the notice.
+			 */
+			function showNotice() {
+				const $field = $( '#wpforms-field-' + fieldId );
+
+				if ( ! $field.length || $field.hasClass( 'wpforms-field-repeater' ) || $field.hasClass( 'wpforms-field-layout' ) ) {
+					return;
+				}
+
+				if ( ! $field.closest( '.wpforms-field-repeater' ).length ) {
+					return;
+				}
+
+				checkAndHandleFieldMapping( $field );
+			}
+
+			showNotice();
 		},
 
 		/**
@@ -547,7 +662,6 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 		handleFieldOptionTabToggle( e, fieldId ) {
 			app.updateFieldCLOption( fieldId );
 			app.updateFieldCalculationOption( fieldId );
-			app.updateFieldUniqueOption( fieldId );
 			app.updateFieldGeolocationRequirementsAlerts( fieldId );
 			app.updateFieldSignatureRequirementsAlerts( fieldId );
 		},
@@ -565,9 +679,28 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 
 			app.updateFieldCLOption( fieldId );
 			app.updateFieldCalculationOption( fieldId );
-			app.updateFieldUniqueOption( fieldId );
 			app.updateFieldGeolocationRequirementsAlerts( fieldId );
 			app.updateFieldSignatureRequirementsAlerts( fieldId );
+			app.fieldsMappingNotice( fieldId );
+		},
+
+		/**
+		 * Update the Conditional Logic field option.
+		 *
+		 * @since 1.9.0
+		 */
+		handleUpdateFieldCLOption() {
+			const $this = $( this );
+			const fieldID = $this.parents( '.wpforms-field-option-row' ).data( 'field-id' );
+			const $field = $( `#wpforms-field-${ fieldID }` );
+
+			if ( ! $field.length ) {
+				return;
+			}
+
+			$field.find( '.wpforms-field' ).each( function() {
+				app.updateFieldCLOption( $( this ).data( 'field-id' ) );
+			} );
 		},
 
 		/**
@@ -678,48 +811,6 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 		},
 
 		/**
-		 * Update the Unique answer field option.
-		 *
-		 * @since 1.8.9
-		 *
-		 * @param {number|string} fieldId Field ID.
-		 */
-		updateFieldUniqueOption( fieldId ) {
-			const $field = $( `#wpforms-field-${ fieldId }` );
-
-			if ( ! $field?.length || $field.hasClass( 'wpforms-field-repeater' ) ) {
-				return;
-			}
-
-			const isFieldInRepeater = $field.closest( '.wpforms-field-repeater' ).length > 0;
-			const $fieldOptionToggleRow = $( `#wpforms-field-option-row-${ fieldId }-unique_answer` );
-			const $fieldOptionToggleInput = $fieldOptionToggleRow.find( 'input' );
-
-			let $fieldOptionNotice = $fieldOptionToggleRow.siblings( '.wpforms-notice-field-unique_answer' );
-
-			// Add "Unique is disabled" notice.
-			if ( ! $fieldOptionNotice.length ) {
-				$fieldOptionNotice = $(
-					`<div class="wpforms-alert wpforms-alert-warning wpforms-notice-field-unique_answer" title="${ strings.unique_notice_tooltip }">
-						<p>${ strings.unique_notice_text }</p>
-					</div>`
-				);
-
-				$fieldOptionToggleRow.before( $fieldOptionNotice );
-			}
-
-			// Notice text.
-			$fieldOptionNotice.find( 'p' ).text( $fieldOptionToggleInput.prop( 'checked' ) ? strings.unique_notice_text_grp : strings.unique_notice_text );
-
-			if ( isFieldInRepeater ) {
-				$fieldOptionToggleInput.prop( 'checked', false ).trigger( 'change' );
-			}
-
-			$fieldOptionToggleRow.toggleClass( 'wpforms-disabled', isFieldInRepeater );
-			$fieldOptionNotice.toggleClass( 'wpforms-hidden', ! isFieldInRepeater );
-		},
-
-		/**
 		 * Update the Conditional Logic field option.
 		 *
 		 * @since 1.8.9
@@ -729,21 +820,27 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 		updateFieldCLOption( fieldId ) { // eslint-disable-line complexity
 			const $field = $( `#wpforms-field-${ fieldId }` );
 
-			if ( ! $field?.length || $field.hasClass( 'wpforms-field-repeater' ) ) {
+			if ( ! $field?.length || $field.hasClass( 'wpforms-field-repeater' ) || $field.hasClass( 'wpforms-field-layout' ) ) {
 				return;
 			}
 
 			const isFieldInRepeater = $field.closest( '.wpforms-field-repeater' ).length > 0;
+			let isFieldInLayout = $field.closest( '.wpforms-field-layout' ).length > 0;
 			const $fieldCLOptionRow = $( `#wpforms-field-option-row-${ fieldId }-conditional_logic` );
 			const $fieldCLBlock = $fieldCLOptionRow.closest( '.wpforms-conditional-block' );
+			const parentBlockType = isFieldInRepeater ? 'repeater' : 'layout';
+
+			if ( isFieldInLayout && ! app.isLayoutCLEnabled( $field.closest( '.wpforms-field-layout' ) ) ) {
+				isFieldInLayout = false;
+			}
 
 			let $fieldCLOptionNotice = $fieldCLBlock.siblings( '.wpforms-notice-field-conditional_logic' );
 
 			// Add "Conditional Logic is disabled" notice.
 			if ( ! $fieldCLOptionNotice.length ) {
 				$fieldCLOptionNotice = $(
-					`<div class="wpforms-alert wpforms-alert-warning wpforms-notice-field-conditional_logic" title="${ strings.cl_notice_tooltip }">
-						<p>${ strings.cl_notice_text }</p>
+					`<div class="wpforms-alert wpforms-alert-warning wpforms-notice-field-conditional_logic">
+						<p>${ wpforms_builder[ parentBlockType ].cl_notice_text }</p>
 					</div>`
 				);
 
@@ -754,12 +851,12 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 			const $fieldCLOptionToggleInput = $fieldCLOptionToggle.find( 'input' );
 
 			// Disable Conditional Logic when moved inside the Repeater field.
-			if ( isFieldInRepeater ) {
+			if ( isFieldInRepeater || isFieldInLayout ) {
 				$fieldCLOptionToggleInput.prop( 'checked', false );
 			}
 
 			// Enable the Conditional Logic if it exists when moved outside the Repeater field.
-			if ( ! isFieldInRepeater && ! $fieldCLOptionToggleInput.is( ':checked' ) ) {
+			if ( ! isFieldInRepeater && ! isFieldInLayout && ! $fieldCLOptionToggleInput.is( ':checked' ) ) {
 				const hasCLGroups = $fieldCLOptionRow.siblings( '.wpforms-conditional-groups' ).length;
 
 				$fieldCLOptionToggleInput.prop( 'checked', hasCLGroups );
@@ -768,11 +865,29 @@ WPForms.Admin.Builder.FieldRepeater = WPForms.Admin.Builder.FieldRepeater || ( f
 			const isCLHasGroups = $fieldCLBlock.find( '.wpforms-conditional-groups' ).length;
 
 			// Notice text.
-			$fieldCLOptionNotice.find( 'p' ).text( isCLHasGroups ? strings.cl_notice_text_grp : strings.cl_notice_text );
+			$fieldCLOptionNotice.find( 'p' ).text( isCLHasGroups ? wpforms_builder[ parentBlockType ].cl_notice_text_grp : wpforms_builder[ parentBlockType ].cl_notice_text );
 
 			// Toggle disabled state and notice visibility.
-			$fieldCLBlock.toggleClass( 'wpforms-disabled', isFieldInRepeater );
-			$fieldCLOptionNotice.toggleClass( 'wpforms-hidden', ! isFieldInRepeater );
+			$fieldCLBlock.toggleClass( 'wpforms-disabled', isFieldInRepeater || isFieldInLayout );
+			$fieldCLOptionNotice.toggleClass( 'wpforms-hidden', ! isFieldInRepeater && ! isFieldInLayout );
+		},
+
+		/**
+		 * Is the Conditional Logic enabled for the Layout field.
+		 *
+		 * @since 1.9.0
+		 *
+		 * @param {jQuery} $field Layout field.
+		 *
+		 * @return {boolean} Whether the Conditional Logic is enabled.
+		 */
+		isLayoutCLEnabled( $field ) {
+			const fieldId = $field.data( 'field-id' );
+			const $fieldCLOptionRow = $( `#wpforms-field-option-row-${ fieldId }-conditional_logic` );
+			const $fieldCLOptionToggle = $fieldCLOptionRow.find( '.wpforms-toggle-control' );
+			const $fieldCLOptionToggleInput = $fieldCLOptionToggle.find( 'input' );
+
+			return $fieldCLOptionToggleInput.is( ':checked' );
 		},
 
 		/**

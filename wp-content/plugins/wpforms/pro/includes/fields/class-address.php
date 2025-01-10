@@ -114,6 +114,11 @@ class WPForms_Field_Address extends WPForms_Field {
 		// Remove primary for expanded formats.
 		unset( $properties['inputs']['primary'] );
 
+		// Remove reference to an input element to prevent duplication.
+		if ( empty( $field['sublabel_hide'] ) ) {
+			unset( $properties['label']['attr']['for'] );
+		}
+
 		$form_id   = absint( $form_data['id'] );
 		$field_id  = wpforms_validate_field_id( $field['id'] );
 		$countries = $this->schemes[ $scheme ]['countries'] ?? [];
@@ -928,11 +933,20 @@ class WPForms_Field_Address extends WPForms_Field {
 						);
 					} else {
 						unset( $state['attr']['placeholder'] );
+
+						// We need to clear the value attribute since it's not allowed for <select>.
+						$state_default = $state['attr']['value'] ?? '';
+
+						unset( $state['attr']['value'] );
+
 						printf(
 							'<select %s %s>',
 							wpforms_html_attributes( $state['id'], $state['class'], $state['data'], $state['attr'] ),
 							! empty( $state['required'] ) ? 'required' : ''
 						);
+							// Revert default value.
+							$state['attr']['value'] = $state_default;
+
 							if ( ! empty( $placeholder ) && empty( $state['attr']['value'] ) ) {
 								printf( '<option class="placeholder" value="" selected disabled>%s</option>', esc_html( $placeholder ) );
 							}
@@ -1037,27 +1051,27 @@ class WPForms_Field_Address extends WPForms_Field {
 
 			// Require Address Line 1.
 			if ( isset( $field_submit['address1'] ) && wpforms_is_empty_string( $field_submit['address1'] ) ) {
-				wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ]['address1'] = $required;
+				wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ]['address1'] = $required;
 			}
 
 			// Require City.
 			if ( isset( $field_submit['city'] ) && wpforms_is_empty_string( $field_submit['city'] ) ) {
-				wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ]['city'] = $required;
+				wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ]['city'] = $required;
 			}
 
 			// Require ZIP/Postal.
 			if ( isset( $this->schemes[ $scheme ]['postal_label'], $field_submit['postal'] ) && empty( $form_data['fields'][ $field_id ]['postal_hide'] ) && wpforms_is_empty_string( $field_submit['postal'] ) ) {
-				wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ]['postal'] = $required;
+				wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ]['postal'] = $required;
 			}
 
 			// Required State.
 			if ( isset( $this->schemes[ $scheme ]['states'], $field_submit['state'] ) && wpforms_is_empty_string( $field_submit['state'] ) ) {
-				wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ]['state'] = $required;
+				wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ]['state'] = $required;
 			}
 
 			// Required Country.
 			if ( isset( $this->schemes[ $scheme ]['countries'], $field_submit['country'] ) && empty( $form_data['fields'][ $field_id ]['country_hide'] ) && wpforms_is_empty_string( $field_submit['country'] ) ) {
-				wpforms()->get( 'process' )->errors[ $form_id ][ $field_id ]['country'] = $required;
+				wpforms()->obj( 'process' )->errors[ $form_id ][ $field_id ]['country'] = $required;
 			}
 		}
 	}
@@ -1106,7 +1120,7 @@ class WPForms_Field_Address extends WPForms_Field {
 			$value = '';
 		}
 
-		wpforms()->get( 'process' )->fields[ $field_id ] = [
+		wpforms()->obj( 'process' )->fields[ $field_id ] = [
 			'name'     => sanitize_text_field( $name ),
 			'value'    => $value,
 			'id'       => wpforms_validate_field_id( $field_id ),

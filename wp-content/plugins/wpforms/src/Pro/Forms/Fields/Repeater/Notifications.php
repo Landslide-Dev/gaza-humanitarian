@@ -30,6 +30,37 @@ class Notifications {
 
 		add_filter( 'wpforms_emails_notifications_field_message_plain', [ $this, 'get_repeater_field_plain' ], 10, 6 );
 		add_filter( 'wpforms_emails_notifications_field_message_html', [ $this, 'get_repeater_field_html' ], 10, 7 );
+		add_filter( 'wpforms_emails_notifications_field_ignored', [ $this, 'notifications_field_ignored' ], 10, 3 );
+	}
+
+	/**
+	 * Ignore the field if it is part of the repeater field.
+	 *
+	 * @since 1.9.0
+	 *
+	 * @param bool|mixed $ignore    Whether to ignore the field.
+	 * @param array      $field     Field data.
+	 * @param array      $form_data Form data.
+	 *
+	 * @return bool
+	 */
+	public function notifications_field_ignored( $ignore, array $field, array $form_data ): bool {
+
+		$ignore = (bool) $ignore;
+
+		$form_fields = $form_data['fields'] ?? [];
+
+		$repeater_fields = RepeaterHelpers::get_repeater_fields( $form_fields );
+
+		foreach ( $repeater_fields as $repeater_field ) {
+			$fields = RepeaterHelpers::get_repeater_all_field_ids( $repeater_field );
+
+			if ( in_array( $field['id'], $fields, false ) ) { // phpcs:ignore WordPress.PHP.StrictInArray.FoundNonStrictFalse
+				$ignore = true;
+			}
+		}
+
+		return $ignore;
 	}
 
 	/**
@@ -78,12 +109,16 @@ class Notifications {
 
 			$fields_message = '';
 
-			foreach ( $rows as $row_data ) {
-				foreach ( $row_data as $data ) {
-					if ( isset( $data['field'], $fields[ $data['field'] ] ) ) {
-						$fields_message .= $notifications->get_field_html( $fields[ $data['field'] ], $show_empty_fields, $other_fields );
+			foreach ( $rows as $row ) {
+				foreach ( $row as $column ) {
+					if ( ! isset( $column['field'] ) ) {
+						continue;
+					}
 
-						unset( $fields[ $data['field'] ] );
+					$field_id = $column['field'];
+
+					if ( isset( $form_data['fields'][ $field_id ] ) ) {
+						$fields_message .= $notifications->get_field_html( $form_data['fields'][ $field_id ], $show_empty_fields, $other_fields );
 					}
 				}
 			}
@@ -143,10 +178,8 @@ class Notifications {
 
 			foreach ( $rows as $row_data ) {
 				foreach ( $row_data as $data ) {
-					if ( isset( $data['field'], $fields[ $data['field'] ] ) ) {
-						$fields_message .= $notifications->get_field_plain( $fields[ $data['field'] ], $show_empty_fields );
-
-						unset( $fields[ $data['field'] ] );
+					if ( isset( $data['field'], $form_data['fields'][ $data['field'] ] ) ) {
+						$fields_message .= $notifications->get_field_plain( $form_data['fields'][ $data['field'] ], $show_empty_fields );
 					}
 				}
 			}
