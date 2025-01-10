@@ -214,184 +214,161 @@
     /*=====================================
     =            ARCHIVE TITLE            =
     =====================================*/
-    // function grab_title() {
-    //     global $post;
-    //     global $wp_query;
-    //     if (is_page() || is_single())
-    //     {
-    //         return get_the_title();
-    //     }
-    //     elseif (is_archive() && !is_category() && !is_tag() && !is_author() && !is_tax())
-    //     {
-    //         if (is_post_type_archive('event')) :
+    function grab_title() {
+        global $post;
+        global $wp_query;
+        if (is_page() || is_single())
+        {
+            return get_the_title();
+        }
+        elseif (is_archive() && !is_category() && !is_tag() && !is_author() && !is_tax())
+        {
+            if (is_post_type_archive('event')) :
 
-    //             if (isset($_GET['show']) && $_GET['show'] == 'upcoming') return 'Upcoming Events';
-    //             if (isset($_GET['show']) && $_GET['show'] == 'past') return 'Past Events';
-    //             if (!isset($_GET['show'])) return 'All Events';
+                if (isset($_GET['show']) && $_GET['show'] == 'upcoming') return 'Upcoming Events';
+                if (isset($_GET['show']) && $_GET['show'] == 'past') return 'Past Events';
+                if (!isset($_GET['show'])) return 'All Events';
 
-    //         endif;
+            endif;
 
-    //         if (is_year()) return get_the_time('Y');
-    //         if (is_month()) return get_the_time('F,  Y');
-    //         if (is_day()) return get_the_time('F j, Y');
-    //     }
-    //     elseif (is_tag())
-    //     {
-    //         return single_tag_title('', FALSE);
-    //     }
-    //     elseif (is_search() && $_GET['s'] != '')
-    //     {
-    //         $search = get_search_query();
-    //         if (strlen($search) > 25) $search = substr($search, 0, 15).'...';
-    //         return '"'.$search.'"';
-    //     }
-    //     elseif (is_search() && $_GET['s'] == '')
-    //     {
-    //         return 'All Posts';
-    //     }
-    //     elseif (is_404())
-    //     {
-    //         return '404 Error!';
-    //     }
-    //     elseif (is_author())
-    //     {
-    //         $author = get_user_by('id', $post->post_author)->data;
-    //         return 'Posts by '.get_the_author_meta('first_name', $author->ID);
-    //     }
-    //     elseif (is_category())
-    //     {
-    //         $category = get_category(get_query_var('cat'));
-    //         return $category->name;
-    //     }
-    //     elseif (is_tax())
-    //     {
-    //         return $wp_query->queried_object->name;
-    //     }
-    //     else
-    //     {
-    //         return FALSE;
-    //     }
-    // }
+            if (is_year()) return get_the_time('Y');
+            if (is_month()) return get_the_time('F,  Y');
+            if (is_day()) return get_the_time('F j, Y');
+        }
+        elseif (is_tag())
+        {
+            return single_tag_title('', FALSE);
+        }
+        elseif (is_search() && $_GET['s'] != '')
+        {
+            $search = get_search_query();
+            if (strlen($search) > 25) $search = substr($search, 0, 15).'...';
+            return '"'.$search.'"';
+        }
+        elseif (is_search() && $_GET['s'] == '')
+        {
+            return 'All Posts';
+        }
+        elseif (is_404())
+        {
+            return '404 Error!';
+        }
+        elseif (is_author())
+        {
+            $author = get_user_by('id', $post->post_author)->data;
+            return 'Posts by '.get_the_author_meta('first_name', $author->ID);
+        }
+        elseif (is_category())
+        {
+            $category = get_category(get_query_var('cat'));
+            return $category->name;
+        }
+        elseif (is_tax())
+        {
+            return $wp_query->queried_object->name;
+        }
+        else
+        {
+            return FALSE;
+        }
+    }
 
     /*=====================================
     =            GRAB SUBTITLE            =
     =====================================*/
-    // function grab_subtitle() {
-    //     global $post;
-    //     global $wp_query;
+    function grab_subtitle() {
+        global $post;
+        global $wp_query;
 
-    //     if (is_archive() && !is_category() && !is_tag() && !is_author() && !is_tax())
-    //     {
-    //         return 'Archive';
-    //     }
-    //     if (is_page())
-    //     {
-    //         if (is_front_page()) return false;
+        if (is_archive() && !is_category() && !is_tag() && !is_author() && !is_tax())
+        {
+            return 'Archive';
+        }
+        if (is_page())
+        {
+            if (is_front_page()) return false;
 
-    //         if ( function_exists('yoast_breadcrumb') ) {
-    //             return yoast_breadcrumb( '','', 0);
-    //         }
+            if ( function_exists('yoast_breadcrumb') ) {
+                return yoast_breadcrumb( '','', 0);
+            }
 
 
             
-    //         $new_subheader = '';
-    //         $slugs = $_SERVER['REQUEST_URI'];
-    //         $slugs = explode('/', $slugs);
-    //         $build_up = '';
-    //         $count = count($slugs);
-    //         foreach ($slugs as $slug)
-    //         {
-    //             if ($slug != '')
-    //             {
-    //                 $build_up .= '/'.$slug; 
-    //                 $new_subheader .= '<a href="'.get_permalink(url_to_postid($build_up)).'">'.get_the_title(url_to_postid($build_up)).'</a> ';
-    //                 $new_subheader .= ' <span class="breader"><i class="fas fa-angle-right"></i></span> ';
-    //                 $i++;
-    //             }
-    //         }
+            $new_subheader = '';
+            $slugs = $_SERVER['REQUEST_URI'];
+            $slugs = explode('/', $slugs);
+            $build_up = '';
+            $count = count($slugs);
+            foreach ($slugs as $slug)
+            {
+                if ($slug != '')
+                {
+                    $build_up .= '/'.$slug; 
+                    $new_subheader .= '<a href="'.get_permalink(url_to_postid($build_up)).'">'.get_the_title(url_to_postid($build_up)).'</a> ';
+                    $new_subheader .= ' <span class="breader"><i class="fas fa-angle-right"></i></span> ';
+                    $i++;
+                }
+            }
 
 
-    //         if (trim(strip_tags($new_subheader)) == trim(get_the_title())) {
-    //             return get_bloginfo();
-    //         }
+            if (trim(strip_tags($new_subheader)) == trim(get_the_title())) {
+                return get_bloginfo();
+            }
 
-    //         return $new_subheader;
-    //         return get_the_title(wp_get_post_parent_id($post->ID));
-    //     }
-    //     elseif (is_single() && get_post_type() == 'post')
-    //     {
-    //         $cat_array = array();
-    //         $categories = get_the_category();
-    //         if ($categories && !empty($categories)) : foreach ($categories as $category) :
-    //             $cat_array[] = '<a href="'.get_category_link($category->term_id).'">'.$category->name.'</a>';
-    //         endforeach; endif;
-    //         if (!empty($cat_array)) $subheader = implode(' <span class="separator">|</span> ', $cat_array);
+            return $new_subheader;
+            return get_the_title(wp_get_post_parent_id($post->ID));
+        }
+        elseif (is_single() && get_post_type() == 'post')
+        {
+            $cat_array = array();
+            $categories = get_the_category();
+            if ($categories && !empty($categories)) : foreach ($categories as $category) :
+                $cat_array[] = '<a href="'.get_category_link($category->term_id).'">'.$category->name.'</a>';
+            endforeach; endif;
+            if (!empty($cat_array)) $subheader = implode(' <span class="separator">|</span> ', $cat_array);
 
-    //         return $subheader;
-    //     }
-    //     elseif (is_tag())
-    //     {
-    //         return 'Tagged';
-    //     }
-    //     elseif (is_search() && $_GET['s'] != '')
-    //     {
-    //         return 'Search Results';
-    //     }
-    //     elseif (is_search() && $_GET['s'] == '')
-    //     {
-    //         return 'Search Results';
-    //     }
-    //     elseif (is_404())
-    //     {
-    //         return 'Page Not Found';
-    //     }
-    //     elseif (is_author())
-    //     {
-    //         return 'Author';
-    //     }
-    //     elseif (is_category())
-    //     {
-    //         return 'Category';
-    //     }
-    //     elseif (is_tax())
-    //     {
-    //         return 'Taxonomy';
-    //     }
-    //     else
-    //     {
-    //         return FALSE;
-    //     }
-    // }
-
-
-
+            return $subheader;
+        }
+        elseif (is_tag())
+        {
+            return 'Tagged';
+        }
+        elseif (is_search() && $_GET['s'] != '')
+        {
+            return 'Search Results';
+        }
+        elseif (is_search() && $_GET['s'] == '')
+        {
+            return 'Search Results';
+        }
+        elseif (is_404())
+        {
+            return 'Page Not Found';
+        }
+        elseif (is_author())
+        {
+            return 'Author';
+        }
+        elseif (is_category())
+        {
+            return 'Category';
+        }
+        elseif (is_tax())
+        {
+            return 'Taxonomy';
+        }
+        else
+        {
+            return FALSE;
+        }
+    }
 
 
 
-	/*====================================
-	=            ON POST SAVE            =
-	====================================*/
-	// function on_post_save($post_id) {
 
-    //     kill_cloudflare_cache();
 
-	// 	if (get_post_type($post_id) == 'post') :
 
-	// 	endif;
 
-    //     if (get_post_type($post_id) == 'event') :
-
-    //         // EVENT REAL DATE
-    //         $date_to_archive = get_field('date_to_archive', $post_id);
-
-    //         if ($date_to_archive) :
-    //             update_field('field_5ad8f43585455', $date_to_archive, $post_id);
-    //         endif;
-
-    //     endif;
-
-	// }
-	// add_action('save_post', 'on_post_save');
 
 
 
@@ -400,27 +377,27 @@
     /*========================================
     =            CUSTOM ENDPOINTS            =
     ========================================*/
-    // add_action('pre_get_posts', function ($query) {
+    add_action('pre_get_posts', function ($query) {
 
-    //     if (!is_admin() && $query->is_main_query()) :
+        if (!is_admin() && $query->is_main_query()) :
 
-    //         global $wp;
-    //         require_once 'routes/index.php';
+            global $wp;
+            // require_once 'routes/index.php';
 
 
-    //         if ($wp->request == '_kill-caches') {
+            if ($wp->request == '_purge-caches') {
 
-    //             $what = kill_cloudflare_cache();
-    //             var_dump($what);
+                $what = purge_cloudflare_cache();
+                var_dump($what);
                 
-    //             exit;
-    //         }
+                exit;
+            }
 
 
 
 
-    //     endif;
-    // });
+        endif;
+    });
 
 
 
@@ -706,3 +683,110 @@
 
     //     ]);
     // });
+
+
+
+
+
+
+
+
+
+    // Cloudflare cache purge function
+    function purge_cloudflare_cache() {
+        $auth_token = 'nOp3wtR22m-oz4S-_9DxBHp6de9L1a6gH5ddKqX9';
+        $zone_id = '542fe71adf6bcf092e9970ef41f1dbc1'; // Add your Cloudflare zone ID here
+        
+        $url = "https://api.cloudflare.com/client/v4/zones/{$zone_id}/purge_cache";
+        
+        $args = array(
+            'method' => 'POST',
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $auth_token,
+                'Content-Type' => 'application/json'
+            ),
+            'body' => json_encode(array(
+                'purge_everything' => true
+            ))
+        );
+
+        $response = wp_remote_post($url, $args);
+
+        if (is_wp_error($response)) {
+            error_log('Cloudflare cache purge failed: ' . $response->get_error_message());
+            return false;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        // if ($body['success']) {
+            return $body;
+        // }
+        
+        // error_log('Cloudflare cache purge failed: ' . print_r($body['errors'], true));
+        // return false;
+    }
+
+    // Hook into WordPress save actions to automatically purge cache
+    add_action('save_post', 'purge_cloudflare_cache');
+    add_action('edit_post', 'purge_cloudflare_cache');
+    add_action('delete_post', 'purge_cloudflare_cache');
+
+
+
+
+
+    if (function_exists('acf_add_options_page')) {
+        acf_add_options_page(array(
+            'page_title'    => 'Settings',
+            'menu_title'    => 'Settings',
+            'menu_slug'     => 'general-settings',
+            'capability'    => 'edit_posts',
+            'redirect'      => false
+        ));
+    }
+
+
+
+
+
+
+    function grab_field($key, $id = NULL, $type = NULL, $pointer = NULL) {
+        if ($type == 'default') return get_field($key, $id);
+
+        if (is_category() || $type == 'category')
+        {
+            if (is_null($id)) :
+                $category = get_category(get_query_var('cat'));
+                $id = $category->term_id;
+            endif;
+
+            return get_field($key, $category);
+        }
+        elseif (is_tag() || $type == 'tag')
+        {
+            if (is_null($id))
+                $id = get_queried_object()->term_id;
+
+            return get_option('post_tag_'.$id.'_'.$key);
+        }
+        elseif (is_tax() || $type == 'tax')
+        {
+            global $wp_query;
+            if (is_null($id))
+                $id = $wp_query->queried_object->term_id;
+
+            if (is_null($pointer))
+                $pointer = $wp_query->queried_object->taxonomy;
+
+            return get_option($pointer.'_'.$id.'_'.$key);
+        }
+        elseif (is_search())
+        {
+            return FALSE;
+        }
+        else
+        {
+            return get_field($key, $id);
+        }
+    }
